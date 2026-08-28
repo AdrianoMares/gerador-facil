@@ -1,17 +1,20 @@
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { activeTools } from '../../tools/registry';
 
 export function Header() {
   return (
     <header className="header">
       <div className="container header-inner">
-        <Link to="/"><strong>Gerador Fácil</strong></Link>
-        <nav className="nav">
-          <Link to="/ferramentas">Ferramentas</Link>
+        <Link className="brand-link" to="/" aria-label="Resodi — página inicial">
+          <img className="brand-logo brand-logo-horizontal" src="/brand/resodi-logo-horizontal.png" alt="Resodi — Resolva serviços digitais." />
+          <img className="brand-logo brand-logo-compact" src="/brand/resodi-favicon.png" alt="" aria-hidden="true" />
+        </Link>
+        <nav className="nav" aria-label="Navegação principal">
+          <NavLink to="/ferramentas">Ferramentas</NavLink>
           {activeTools.map((tool) => (
-            <Link key={tool.slug} to={tool.path}>{tool.shortName}</Link>
+            <NavLink key={tool.slug} to={tool.path}>{tool.shortName}</NavLink>
           ))}
-          <Link to="/precos">Preços</Link>
+          <NavLink to="/precos">Preços</NavLink>
         </nav>
       </div>
     </header>

@@ -1,11 +1,20 @@
-# AGENTS.md — Resod
+# AGENTS.md — Resodi
 
 ## Projeto e escopo
 
-- Este repositório contém o **Resod**, uma plataforma de ferramentas e serviços digitais.
+- Este repositório contém a **Resodi**, uma plataforma de ferramentas e serviços digitais.
 - Estas instruções se aplicam a todo o repositório.
 - A stack principal é **React**, **Vite**, **React Router**, **Supabase** e **Vercel**.
 - Use a versão do Node.js definida em `.nvmrc` e em `package.json`. Se os dois arquivos divergirem, não altere nenhum deles sem solicitação; informe a inconsistência.
+
+## Identidade visual
+
+- O nome oficial da marca é **Resodi** e o slogan é **Resolva serviços digitais.**
+- O domínio oficial para referências públicas é **https://www.resodi.com.br**.
+- A paleta aprovada é azul principal `#163B63`, azul escuro `#0D2742`, verde `#2E9E6F`, fundo claro `#F4F6F8` e branco `#FFFFFF`.
+- A tipografia oficial é **Manrope**, preferencialmente nos pesos Regular e Medium.
+- Reutilize os ativos oficiais da marca disponíveis em `public/brand/`.
+- Não redesenhe, recrie ou altere a marca e seu símbolo sem solicitação explícita.
 
 ## Arquitetura atual
 
