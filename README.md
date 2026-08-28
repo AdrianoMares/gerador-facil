@@ -1,6 +1,8 @@
-# Gerador Fácil
+# Resodi — Resolva serviços digitais.
 
-Projeto de ferramentas online para gerar documentos e arquivos automaticamente.
+Plataforma de ferramentas e serviços digitais para resolver tarefas do dia a dia de forma simples, prática e online.
+
+Site oficial: [https://www.resodi.com.br](https://www.resodi.com.br)
 
 ## Stack
 
