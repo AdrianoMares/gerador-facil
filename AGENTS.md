@@ -43,6 +43,17 @@
 - No frontend Vite, considere que variáveis expostas ao cliente não são secretas, inclusive as prefixadas com `VITE_`.
 - Não registre dados sensíveis em logs nem os inclua em mensagens de erro, exemplos, commits ou documentação.
 
+## Publicidade e Google AdSense
+
+- A plataforma poderá ser monetizada com Google AdSense.
+- Implemente anúncios através do componente reutilizável de anúncios e centralize sua configuração; não insira código AdSense diretamente em várias páginas quando ele puder ser compartilhado.
+- Não insira IDs `ca-pub-*` ou identificadores de slots diretamente no código sem configuração apropriada.
+- Nunca posicione anúncios de forma que possam ser confundidos com botões, menus, downloads ou ações da aplicação.
+- Mantenha anúncios afastados de botões como “Gerar”, “Baixar”, “Continuar”, “Enviar” e equivalentes, sem prejudicar formulários ou a experiência de uso.
+- Preserve a responsividade e evite layout shift.
+- Quando anúncios estiverem desativados, não renderize espaços vazios.
+- Futuras alterações no sistema de anúncios devem preservar uma implementação centralizada e reutilizável.
+
 ## Verificação e conclusão
 
 - Antes de finalizar qualquer alteração, execute:
