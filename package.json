@@ -19,6 +19,8 @@
     "react-dom": "19.2.8",
     "react-router-dom": "7.18.2",
     "@supabase/supabase-js": "2.112.3",
+    "@vercel/analytics": "2.0.1",
+    "@vercel/speed-insights": "2.0.0",
     "jspdf": "4.2.1",
     "html2canvas": "1.4.1"
   },
