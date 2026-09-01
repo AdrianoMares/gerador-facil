@@ -28,3 +28,14 @@ const receiptRequiredFields = [
 export function validateReceiptData(data) {
   return validateRequiredFields(data, receiptRequiredFields);
 }
+
+export function serializeReceiptDraft(data) {
+  return { ...data };
+}
+
+export function hydrateReceiptDraft(payload) {
+  return {
+    ...createReceiptData(),
+    ...(payload && typeof payload === 'object' ? payload : {})
+  };
+}
