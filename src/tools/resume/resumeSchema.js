@@ -107,3 +107,54 @@ export function validateResumeData(data) {
 
   return validateRequiredFields(data, [...resumeRequiredFields, ...dynamicRules]);
 }
+
+function updateItemSequence(data) {
+  const ids = [
+    ...data.education,
+    ...data.courses,
+    ...data.skills,
+    ...data.experiences,
+    ...data.experiences.flatMap((experience) => experience.activities)
+  ].map((item) => item.id);
+
+  ids.forEach((id) => {
+    const sequence = Number(String(id).match(/-(\d+)$/)?.[1]);
+    if (Number.isInteger(sequence)) itemSequence = Math.max(itemSequence, sequence);
+  });
+}
+
+export function serializeResumeDraft(data) {
+  const personal = { ...data.personal };
+  delete personal.photo;
+
+  return {
+    ...data,
+    personal
+  };
+}
+
+export function hydrateResumeDraft(payload, currentData = createResumeData()) {
+  const initialData = createResumeData();
+  const savedData = payload && typeof payload === 'object' ? payload : {};
+  const hydratedData = {
+    ...initialData,
+    ...savedData,
+    personal: {
+      ...initialData.personal,
+      ...(savedData.personal && typeof savedData.personal === 'object' ? savedData.personal : {}),
+      photo: currentData.personal?.photo || ''
+    },
+    education: Array.isArray(savedData.education) ? savedData.education : [],
+    courses: Array.isArray(savedData.courses) ? savedData.courses : [],
+    skills: Array.isArray(savedData.skills) ? savedData.skills : [],
+    experiences: Array.isArray(savedData.experiences)
+      ? savedData.experiences.map((experience) => ({
+          ...experience,
+          activities: Array.isArray(experience.activities) ? experience.activities : []
+        }))
+      : []
+  };
+
+  updateItemSequence(hydratedData);
+  return hydratedData;
+}
