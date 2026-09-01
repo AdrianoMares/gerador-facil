@@ -43,6 +43,15 @@
 - No frontend Vite, considere que variáveis expostas ao cliente não são secretas, inclusive as prefixadas com `VITE_`.
 - Não registre dados sensíveis em logs nem os inclua em mensagens de erro, exemplos, commits ou documentação.
 
+## Persistência de documentos no Supabase
+
+- Rascunhos usam ownership por `auth.uid()` e políticas RLS.
+- Os modos Manual e IA compartilham o mesmo payload estruturado.
+- Os estados `payment_pending` e `paid` são controlados exclusivamente pelo backend.
+- Fotos não devem ser armazenadas em Base64 dentro do payload.
+- Toda migration do Supabase deve ser versionada antes de ser aplicada em produção.
+- A `service_role` nunca deve ser usada ou exposta no frontend.
+
 ## Roteamento na Vercel
 
 - O fallback da SPA existe para encaminhar rotas client-side ao `index.html`.
