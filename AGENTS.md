@@ -43,6 +43,12 @@
 - No frontend Vite, considere que variáveis expostas ao cliente não são secretas, inclusive as prefixadas com `VITE_`.
 - Não registre dados sensíveis em logs nem os inclua em mensagens de erro, exemplos, commits ou documentação.
 
+## Roteamento na Vercel
+
+- O fallback da SPA existe para encaminhar rotas client-side ao `index.html`.
+- Futuras rotas server-side ou de API não devem ser convertidas silenciosamente em `index.html`.
+- Ao introduzir `/api/*` ou outras Vercel Functions, revise e teste a configuração de roteamento da Vercel para preservar as rotas de backend antes do fallback da SPA.
+
 ## Publicidade e Google AdSense
 
 - A plataforma poderá ser monetizada com Google AdSense.
