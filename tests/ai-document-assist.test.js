@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { AI_MODEL } from '../api/_documentAiSchemas.js';
+import {
+  AI_TIMEZONE,
+  buildAiDocumentMessages,
+  currentDateInTimezone
+} from '../api/_documentAiPrompts.js';
 import { createAiDocumentAssistHandler } from '../api/ai-document-assist.js';
 
 const env = {
@@ -75,6 +81,101 @@ function validBody(overrides = {}) {
     ...overrides
   };
 }
+
+function promptInput(serviceType, message, currentPayload = {}) {
+  return {
+    serviceType,
+    message,
+    currentPayload,
+    conversation: []
+  };
+}
+
+test('mantém o modelo Cloudflare definido para a integração', () => {
+  assert.equal(AI_MODEL, '@cf/meta/llama-3.1-8b-instruct-fast');
+});
+
+test('calcula currentDate no fuso America/Sao_Paulo e envia o contexto ao modelo', () => {
+  const now = new Date('2026-09-02T02:30:00.000Z');
+  const messages = buildAiDocumentMessages(
+    promptInput('receipt', 'O pagamento foi hoje.'),
+    { now }
+  );
+  const context = JSON.parse(messages[1].content);
+
+  assert.equal(currentDateInTimezone(now), '2026-09-01');
+  assert.equal(context.currentDate, '2026-09-01');
+  assert.equal(context.timezone, AI_TIMEZONE);
+  assert.match(messages[0].content, /hoje, ontem e amanhã/);
+  assert.match(messages[0].content, /currentDate é 2026-09-01/);
+});
+
+test('prompt do recibo exige extração completa e contém as regressões semânticas', async (context) => {
+  const cases = [
+    {
+      message: 'Recebi R$ 450 de Maria Silva referente à manutenção de computador em Aracruz hoje.',
+      expectedPromptFragments: ['"payerName":"Maria Silva"', '"amount":"450"', '"city":"Aracruz"']
+    },
+    {
+      message: 'João Pereira pagou 1.250 reais para Carlos Souza pelo serviço de pintura realizado em Vitória no dia 15/08/2026.',
+      expectedPromptFragments: ['"recipientName":"Carlos Souza"', '"date":"2026-08-15"']
+    },
+    {
+      message: 'Quem recebeu foi João Neves.',
+      expectedPromptFragments: ['patch é somente {"recipientName":"João Neves"}', 'Não repita nem apague']
+    }
+  ];
+
+  for (const item of cases) {
+    await context.test(item.message, () => {
+      const messages = buildAiDocumentMessages(promptInput('receipt', item.message), {
+        now: new Date('2026-09-01T15:00:00.000Z')
+      });
+      const systemPrompt = messages[0].content;
+      const requestContext = JSON.parse(messages[1].content);
+
+      assert.equal(requestContext.message, item.message);
+      assert.match(systemPrompt, /Não pare após encontrar o primeiro dado/);
+      assert.match(systemPrompt, /payerName, payerDocument, amount, description, recipientName, recipientDocument, city e date/);
+      assert.match(systemPrompt, /"date":"2026-09-01"/);
+      assert.match(systemPrompt, /"recebi" e "me pagou" não revelam o nome do recebedor/);
+      assert.match(systemPrompt, /Organizei o valor, o pagador, a referência, a cidade e a data/);
+      assert.match(systemPrompt, /"recipientName":"João Neves","city":"Aracruz"/);
+      item.expectedPromptFragments.forEach((fragment) => assert.ok(systemPrompt.includes(fragment)));
+    });
+  }
+});
+
+test('prompt do currículo varre campos aninhados e preserva IDs em continuações', async (context) => {
+  const cases = [
+    'Sou contador, moro em Aracruz, trabalhei de 2020 a 2025 na Empresa X como analista fiscal e tenho experiência com imposto de renda e departamento fiscal.',
+    'Meu nome é Ana Lima, sou designer de produto e uso Figma e pesquisa com usuários.',
+    'Na Empresa Alfa também liderei o fechamento mensal.'
+  ];
+
+  for (const message of cases) {
+    await context.test(message, () => {
+      const messages = buildAiDocumentMessages(promptInput('resume', message, {
+        experiences: [{ id: 'experience-2', company: 'Empresa Alfa' }]
+      }));
+      const systemPrompt = messages[0].content;
+      const requestContext = JSON.parse(messages[1].content);
+
+      assert.equal(requestContext.message, message);
+      assert.match(systemPrompt, /personal, professionalSummary, experiences, education, courses e skills/);
+      assert.match(systemPrompt, /"professionalTitle":"Contador"/);
+      assert.match(systemPrompt, /"company":"Empresa X"/);
+      assert.match(systemPrompt, /"março de 2020" vira "2020-03"/);
+      assert.match(systemPrompt, /somente anos, não invente meses/);
+      assert.match(systemPrompt, /omita startDate e endDate/);
+      assert.doesNotMatch(systemPrompt, /"startDate":"2020-01"/);
+      assert.doesNotMatch(systemPrompt, /"endDate":"2025-12"/);
+      assert.match(systemPrompt, /"name":"Departamento fiscal"/);
+      assert.match(systemPrompt, /preserve os IDs internos/);
+      assert.match(systemPrompt, /Não mencione foto/);
+    });
+  }
+});
 
 test('rejeita métodos diferentes de POST', async () => {
   const handler = createAiDocumentAssistHandler({ createClientImpl, fetchImpl: cloudflareSuccess(), env });
