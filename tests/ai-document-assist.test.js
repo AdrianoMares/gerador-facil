@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AI_MODEL } from '../api/_documentAiSchemas.js';
+import {
+  AI_MODEL,
+  getAiResponseSchema,
+  parseAiAssistantResponse,
+  validateAndSanitizeAiRequest
+} from '../api/_documentAiSchemas.js';
 import {
   AI_TIMEZONE,
   buildAiDocumentMessages,
@@ -95,6 +100,116 @@ test('mantém o modelo Cloudflare definido para a integração', () => {
   assert.equal(AI_MODEL, '@cf/meta/llama-3.1-8b-instruct-fast');
 });
 
+test('schema da IA aplica regras específicas aos campos do recibo', () => {
+  const schema = getAiResponseSchema('receipt');
+  const fields = schema.properties.patch.properties;
+
+  assert.equal(fields.payerName.maxLength, 150);
+  assert.equal(fields.recipientName.maxLength, 150);
+  assert.equal(fields.payerDocument.maxLength, 30);
+  assert.equal(fields.recipientDocument.maxLength, 30);
+  assert.equal(fields.amount.maxLength, 30);
+  assert.match('450.50', new RegExp(fields.amount.pattern));
+  assert.doesNotMatch('R$ 450 porque...', new RegExp(fields.amount.pattern));
+  assert.equal(fields.description.maxLength, 300);
+  assert.equal(fields.city.maxLength, 120);
+  assert.equal(fields.date.minLength, 10);
+  assert.equal(fields.date.maxLength, 10);
+  assert.match('2026-09-01', new RegExp(fields.date.pattern));
+  assert.doesNotMatch('hoje', new RegExp(fields.date.pattern));
+  assert.deepEqual(schema.properties.patch.required, undefined);
+  assert.equal(schema.properties.assistantMessage.maxLength, 400);
+});
+
+test('remove placeholders e explicações do patch final do recibo', () => {
+  const result = parseAiAssistantResponse('receipt', {
+    assistantMessage: 'Organizei os dados encontrados.',
+    patch: {
+      payerName: 'Maria Silva',
+      amount: '450',
+      description: 'manutenção de computador',
+      city: 'Aracruz',
+      date: '2026-09-01',
+      recipientName: '(vazio) - não foi possível inferir o nome do recebedor com segurança porque a mensagem não informou...'
+    }
+  });
+
+  assert.deepEqual(result.patch, {
+    payerName: 'Maria Silva',
+    amount: '450',
+    description: 'manutenção de computador',
+    city: 'Aracruz',
+    date: '2026-09-01'
+  });
+});
+
+test('valida deterministicamente valores estruturados do recibo', async (context) => {
+  const cases = [
+    { field: 'recipientName', value: 'João Neves', expected: 'João Neves' },
+    { field: 'amount', value: '450', expected: '450' },
+    { field: 'amount', value: 'R$ 450 porque foi pago hoje', expected: undefined },
+    { field: 'date', value: '2026-09-01', expected: '2026-09-01' },
+    { field: 'date', value: 'hoje', expected: undefined },
+    { field: 'date', value: '2026-02-31', expected: undefined },
+    { field: 'city', value: `Aracruz ${'explicação '.repeat(20)}`, expected: undefined }
+  ];
+
+  for (const item of cases) {
+    await context.test(`${item.field}: ${item.value.slice(0, 30)}`, () => {
+      const result = parseAiAssistantResponse('receipt', {
+        assistantMessage: 'Dados organizados.',
+        patch: { [item.field]: item.value }
+      });
+      assert.equal(result.patch[item.field], item.expected);
+    });
+  }
+});
+
+test('preserva valores existentes do currentPayload sem submetê-los às regras estritas do patch', () => {
+  const input = validateAndSanitizeAiRequest(validBody({
+    currentPayload: {
+      payerName: 'Maria Silva',
+      amount: 'R$ 450,00',
+      description: 'Serviço já informado'
+    }
+  }));
+
+  assert.deepEqual(input.currentPayload, {
+    payerName: 'Maria Silva',
+    amount: 'R$ 450,00',
+    description: 'Serviço já informado'
+  });
+});
+
+test('remove placeholders dos campos estruturados do currículo sem bloquear textos livres', () => {
+  const result = parseAiAssistantResponse('resume', {
+    assistantMessage: 'Organizei os dados válidos.',
+    patch: {
+      personal: {
+        fullName: '(vazio)',
+        professionalTitle: 'Analista fiscal'
+      },
+      professionalSummary: 'Profissional com experiência em rotinas fiscais e atendimento.',
+      experiences: [{
+        company: 'não foi possível inferir a empresa',
+        role: 'Contador',
+        activities: [{ description: 'Responsável pelo fechamento mensal.' }]
+      }],
+      education: [{ course: 'Ciências Contábeis', institution: 'não informado' }],
+      skills: [{ name: 'campo ausente' }, { name: 'Excel' }]
+    }
+  });
+
+  assert.deepEqual(result.patch.personal, { professionalTitle: 'Analista fiscal' });
+  assert.equal(result.patch.professionalSummary, 'Profissional com experiência em rotinas fiscais e atendimento.');
+  assert.deepEqual(result.patch.experiences[0], {
+    role: 'Contador',
+    activities: [{ description: 'Responsável pelo fechamento mensal.' }]
+  });
+  assert.deepEqual(result.patch.education[0], { course: 'Ciências Contábeis' });
+  assert.deepEqual(result.patch.skills, [{ name: 'Excel' }]);
+});
+
 test('calcula currentDate no fuso America/Sao_Paulo e envia o contexto ao modelo', () => {
   const now = new Date('2026-09-02T02:30:00.000Z');
   const messages = buildAiDocumentMessages(
@@ -141,6 +256,10 @@ test('prompt do recibo exige extração completa e contém as regressões semân
       assert.match(systemPrompt, /"recebi" e "me pagou" não revelam o nome do recebedor/);
       assert.match(systemPrompt, /Organizei o valor, o pagador, a referência, a cidade e a data/);
       assert.match(systemPrompt, /"recipientName":"João Neves","city":"Aracruz"/);
+      assert.match(systemPrompt, /OMITA esse campo do patch/);
+      assert.match(systemPrompt, /Explique a ausência somente em assistantMessage/);
+      assert.match(systemPrompt, /Resposta proibida/);
+      assert.match(systemPrompt, /"payerName":"Maria Silva","amount":"450"/);
       item.expectedPromptFragments.forEach((fragment) => assert.ok(systemPrompt.includes(fragment)));
     });
   }

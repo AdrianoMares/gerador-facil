@@ -6,6 +6,38 @@ export const MAX_AI_CONVERSATION_MESSAGES = 8;
 const MAX_CONVERSATION_MESSAGE_LENGTH = 1_200;
 const MAX_SHORT_TEXT_LENGTH = 500;
 const MAX_LONG_TEXT_LENGTH = 2_000;
+const MAX_ASSISTANT_MESSAGE_LENGTH = 400;
+
+const RECEIPT_FIELD_LIMITS = {
+  payerName: 150,
+  payerDocument: 30,
+  recipientName: 150,
+  recipientDocument: 30,
+  amount: 30,
+  description: 300,
+  city: 120,
+  date: 10
+};
+
+const RESUME_FIELD_LIMITS = {
+  fullName: 150,
+  professionalTitle: 150,
+  phone: 40,
+  email: 254,
+  location: 120,
+  professionalSummary: 2_000,
+  company: 150,
+  role: 150,
+  course: 180,
+  institution: 180,
+  courseName: 180,
+  skill: 100,
+  activity: 1_200
+};
+
+const AMOUNT_PATTERN = '^(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,2})?$';
+const DATE_PATTERN = '^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$';
+const MONTH_PATTERN = '^[0-9]{4}-(?:0[1-9]|1[0-2])$';
 
 const receiptFields = [
   'payerName',
@@ -26,17 +58,45 @@ const personalFields = [
   'location'
 ];
 
-const stringSchema = { type: 'string', maxLength: MAX_LONG_TEXT_LENGTH };
-const shortStringSchema = { type: 'string', maxLength: MAX_SHORT_TEXT_LENGTH };
 const idSchema = { type: 'string', maxLength: 120 };
-const monthSchema = { type: 'string', maxLength: 7 };
+const monthSchema = { type: 'string', minLength: 7, maxLength: 7, pattern: MONTH_PATTERN };
+
+function textSchema(maxLength) {
+  return { type: 'string', maxLength };
+}
+
+const receiptPatchProperties = {
+  payerName: textSchema(RECEIPT_FIELD_LIMITS.payerName),
+  payerDocument: textSchema(RECEIPT_FIELD_LIMITS.payerDocument),
+  recipientName: textSchema(RECEIPT_FIELD_LIMITS.recipientName),
+  recipientDocument: textSchema(RECEIPT_FIELD_LIMITS.recipientDocument),
+  amount: {
+    ...textSchema(RECEIPT_FIELD_LIMITS.amount),
+    pattern: AMOUNT_PATTERN
+  },
+  description: textSchema(RECEIPT_FIELD_LIMITS.description),
+  city: textSchema(RECEIPT_FIELD_LIMITS.city),
+  date: {
+    ...textSchema(RECEIPT_FIELD_LIMITS.date),
+    minLength: RECEIPT_FIELD_LIMITS.date,
+    pattern: DATE_PATTERN
+  }
+};
+
+const resumePersonalProperties = {
+  fullName: textSchema(RESUME_FIELD_LIMITS.fullName),
+  professionalTitle: textSchema(RESUME_FIELD_LIMITS.professionalTitle),
+  phone: textSchema(RESUME_FIELD_LIMITS.phone),
+  email: textSchema(RESUME_FIELD_LIMITS.email),
+  location: textSchema(RESUME_FIELD_LIMITS.location)
+};
 
 const activitySchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
     id: idSchema,
-    description: stringSchema
+    description: textSchema(RESUME_FIELD_LIMITS.activity)
   }
 };
 
@@ -45,8 +105,8 @@ const experienceSchema = {
   additionalProperties: false,
   properties: {
     id: idSchema,
-    company: shortStringSchema,
-    role: shortStringSchema,
+    company: textSchema(RESUME_FIELD_LIMITS.company),
+    role: textSchema(RESUME_FIELD_LIMITS.role),
     startDate: monthSchema,
     endDate: monthSchema,
     current: { type: 'boolean' },
@@ -63,8 +123,8 @@ const educationSchema = {
   additionalProperties: false,
   properties: {
     id: idSchema,
-    course: shortStringSchema,
-    institution: shortStringSchema,
+    course: textSchema(RESUME_FIELD_LIMITS.course),
+    institution: textSchema(RESUME_FIELD_LIMITS.institution),
     startDate: monthSchema,
     endDate: monthSchema
   }
@@ -75,8 +135,8 @@ const courseSchema = {
   additionalProperties: false,
   properties: {
     id: idSchema,
-    name: shortStringSchema,
-    institution: shortStringSchema,
+    name: textSchema(RESUME_FIELD_LIMITS.courseName),
+    institution: textSchema(RESUME_FIELD_LIMITS.institution),
     completionDate: monthSchema
   }
 };
@@ -86,7 +146,7 @@ const skillSchema = {
   additionalProperties: false,
   properties: {
     id: idSchema,
-    name: shortStringSchema
+    name: textSchema(RESUME_FIELD_LIMITS.skill)
   }
 };
 
@@ -94,7 +154,7 @@ const patchSchemas = {
   receipt: {
     type: 'object',
     additionalProperties: false,
-    properties: Object.fromEntries(receiptFields.map((field) => [field, stringSchema]))
+    properties: receiptPatchProperties
   },
   resume: {
     type: 'object',
@@ -103,9 +163,9 @@ const patchSchemas = {
       personal: {
         type: 'object',
         additionalProperties: false,
-        properties: Object.fromEntries(personalFields.map((field) => [field, stringSchema]))
+        properties: resumePersonalProperties
       },
-      professionalSummary: stringSchema,
+      professionalSummary: textSchema(RESUME_FIELD_LIMITS.professionalSummary),
       education: { type: 'array', maxItems: 10, items: educationSchema },
       courses: { type: 'array', maxItems: 10, items: courseSchema },
       skills: { type: 'array', maxItems: 20, items: skillSchema },
@@ -119,7 +179,7 @@ export function getAiResponseSchema(serviceType) {
     type: 'object',
     additionalProperties: false,
     properties: {
-      assistantMessage: { type: 'string', minLength: 1, maxLength: 400 },
+      assistantMessage: { type: 'string', minLength: 1, maxLength: MAX_ASSISTANT_MESSAGE_LENGTH },
       patch: patchSchemas[serviceType]
     },
     required: ['assistantMessage', 'patch']
@@ -130,15 +190,21 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function cleanString(value, maxLength = MAX_LONG_TEXT_LENGTH, { allowEmpty = true } = {}) {
+function cleanString(
+  value,
+  maxLength = MAX_LONG_TEXT_LENGTH,
+  { allowEmpty = true, rejectOverlong = false } = {}
+) {
   if (typeof value !== 'string') return undefined;
-  const cleaned = value.trim().slice(0, maxLength);
+  const trimmed = value.trim();
+  if (rejectOverlong && trimmed.length > maxLength) return undefined;
+  const cleaned = trimmed.slice(0, maxLength);
   if (!allowEmpty && !cleaned) return undefined;
   return cleaned;
 }
 
-function cleanId(value) {
-  return cleanString(value, 120, { allowEmpty: false });
+function cleanId(value, options = {}) {
+  return cleanString(value, 120, { ...options, allowEmpty: false });
 }
 
 function cleanObjectStrings(source, fields, maxLength = MAX_LONG_TEXT_LENGTH, options) {
@@ -155,27 +221,115 @@ function cleanList(source, limit, cleaner) {
   return source.slice(0, limit).map(cleaner).filter((item) => Object.keys(item).length > 0);
 }
 
-function cleanActivities(source, options) {
-  return cleanList(source, 8, (activity) => ({
-    ...(cleanId(activity?.id) ? { id: cleanId(activity.id) } : {}),
-    ...cleanObjectStrings(activity, ['description'], MAX_LONG_TEXT_LENGTH, options)
+function normalizedValidationText(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR');
+}
+
+function containsAiPlaceholder(value) {
+  const normalized = normalizedValidationText(value);
+  return [
+    '(vazio)',
+    'nao informado',
+    'nao foi possivel inferir',
+    'nao ha informacao suficiente',
+    'o usuario nao informou',
+    'nao mencionado',
+    'campo ausente',
+    'desconhecido'
+  ].some((placeholder) => normalized.includes(placeholder));
+}
+
+function cleanStructuredString(value, maxLength, options = {}, { maxWords = 20 } = {}) {
+  const cleaned = cleanString(value, maxLength, options);
+  if (cleaned === undefined) return undefined;
+  if (containsAiPlaceholder(cleaned) || /[\r\n]/.test(cleaned)) return undefined;
+  if (cleaned.split(/\s+/).length > maxWords) return undefined;
+  return cleaned;
+}
+
+function cleanAmount(value, options) {
+  const cleaned = cleanString(value, RECEIPT_FIELD_LIMITS.amount, options);
+  if (!cleaned || !new RegExp(AMOUNT_PATTERN).test(cleaned)) return undefined;
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) && amount > 0 ? cleaned : undefined;
+}
+
+function cleanDate(value, options) {
+  const cleaned = cleanString(value, RECEIPT_FIELD_LIMITS.date, options);
+  if (!cleaned || !new RegExp(DATE_PATTERN).test(cleaned)) return undefined;
+
+  const [year, month, day] = cleaned.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
+    ? cleaned
+    : undefined;
+}
+
+function cleanMonth(value, options) {
+  const cleaned = cleanString(value, 7, options);
+  return cleaned && new RegExp(MONTH_PATTERN).test(cleaned) ? cleaned : undefined;
+}
+
+function cleanConfiguredStrings(source, fieldConfig, options) {
+  if (!isPlainObject(source)) return {};
+
+  return Object.fromEntries(Object.entries(fieldConfig).flatMap(([field, config]) => {
+    const value = cleanStructuredString(source[field], config.maxLength, options, config);
+    return value === undefined ? [] : [[field, value]];
   }));
 }
 
-function cleanExperiences(source, options) {
+function cleanActivities(source, options, { strictPatch = false } = {}) {
+  return cleanList(source, 8, (activity) => ({
+    ...(cleanId(activity?.id, options) ? { id: cleanId(activity.id, options) } : {}),
+    ...cleanObjectStrings(
+      activity,
+      ['description'],
+      strictPatch ? RESUME_FIELD_LIMITS.activity : MAX_LONG_TEXT_LENGTH,
+      options
+    )
+  }));
+}
+
+function cleanExperiences(source, options, { strictPatch = false } = {}) {
   return cleanList(source, 10, (experience) => {
     if (!isPlainObject(experience)) return {};
-    const id = cleanId(experience.id);
-    const activities = cleanActivities(experience.activities, options);
+    const id = cleanId(experience.id, options);
+    const activities = cleanActivities(experience.activities, options, { strictPatch });
+
+    const structuredFields = strictPatch
+      ? cleanConfiguredStrings(experience, {
+          company: { maxLength: RESUME_FIELD_LIMITS.company, maxWords: 20 },
+          role: { maxLength: RESUME_FIELD_LIMITS.role, maxWords: 20 }
+        }, options)
+      : cleanObjectStrings(
+          experience,
+          ['company', 'role'],
+          MAX_SHORT_TEXT_LENGTH,
+          options
+        );
+
+    const dateFields = strictPatch
+      ? Object.fromEntries(['startDate', 'endDate'].flatMap((field) => {
+          const value = cleanMonth(experience[field], options);
+          return value === undefined ? [] : [[field, value]];
+        }))
+      : cleanObjectStrings(
+          experience,
+          ['startDate', 'endDate'],
+          MAX_SHORT_TEXT_LENGTH,
+          options
+        );
 
     return {
       ...(id ? { id } : {}),
-      ...cleanObjectStrings(
-        experience,
-        ['company', 'role', 'startDate', 'endDate'],
-        MAX_SHORT_TEXT_LENGTH,
-        options
-      ),
+      ...structuredFields,
+      ...dateFields,
       ...(typeof experience.current === 'boolean' ? { current: experience.current } : {}),
       ...(activities.length > 0 ? { activities } : {})
     };
@@ -213,8 +367,73 @@ function cleanResumePayload(source, options = {}) {
   };
 }
 
+function cleanResumePatch(source, options) {
+  if (!isPlainObject(source)) return {};
+
+  return {
+    personal: cleanConfiguredStrings(source.personal, {
+      fullName: { maxLength: RESUME_FIELD_LIMITS.fullName, maxWords: 20 },
+      professionalTitle: { maxLength: RESUME_FIELD_LIMITS.professionalTitle, maxWords: 20 },
+      phone: { maxLength: RESUME_FIELD_LIMITS.phone, maxWords: 5 },
+      email: { maxLength: RESUME_FIELD_LIMITS.email, maxWords: 2 },
+      location: { maxLength: RESUME_FIELD_LIMITS.location, maxWords: 15 }
+    }, options),
+    ...(cleanString(source.professionalSummary, RESUME_FIELD_LIMITS.professionalSummary, options) !== undefined
+      ? { professionalSummary: cleanString(source.professionalSummary, RESUME_FIELD_LIMITS.professionalSummary, options) }
+      : {}),
+    education: cleanList(source.education, 10, (item) => ({
+      ...(cleanId(item?.id, options) ? { id: cleanId(item.id, options) } : {}),
+      ...cleanConfiguredStrings(item, {
+        course: { maxLength: RESUME_FIELD_LIMITS.course, maxWords: 25 },
+        institution: { maxLength: RESUME_FIELD_LIMITS.institution, maxWords: 25 }
+      }, options),
+      ...Object.fromEntries(['startDate', 'endDate'].flatMap((field) => {
+        const value = cleanMonth(item?.[field], options);
+        return value === undefined ? [] : [[field, value]];
+      }))
+    })),
+    courses: cleanList(source.courses, 10, (item) => ({
+      ...(cleanId(item?.id, options) ? { id: cleanId(item.id, options) } : {}),
+      ...cleanConfiguredStrings(item, {
+        name: { maxLength: RESUME_FIELD_LIMITS.courseName, maxWords: 25 },
+        institution: { maxLength: RESUME_FIELD_LIMITS.institution, maxWords: 25 }
+      }, options),
+      ...(cleanMonth(item?.completionDate, options)
+        ? { completionDate: cleanMonth(item.completionDate, options) }
+        : {})
+    })),
+    skills: cleanList(source.skills, 20, (item) => ({
+      ...(cleanId(item?.id, options) ? { id: cleanId(item.id, options) } : {}),
+      ...cleanConfiguredStrings(item, {
+        name: { maxLength: RESUME_FIELD_LIMITS.skill, maxWords: 12 }
+      }, options)
+    })),
+    experiences: cleanExperiences(source.experiences, options, { strictPatch: true })
+  };
+}
+
 function cleanReceiptPayload(source, options = {}) {
   return cleanObjectStrings(source, receiptFields, MAX_LONG_TEXT_LENGTH, options);
+}
+
+function cleanReceiptPatch(source, options) {
+  if (!isPlainObject(source)) return {};
+
+  const cleaners = {
+    payerName: (value) => cleanStructuredString(value, RECEIPT_FIELD_LIMITS.payerName, options),
+    payerDocument: (value) => cleanStructuredString(value, RECEIPT_FIELD_LIMITS.payerDocument, options, { maxWords: 4 }),
+    recipientName: (value) => cleanStructuredString(value, RECEIPT_FIELD_LIMITS.recipientName, options),
+    recipientDocument: (value) => cleanStructuredString(value, RECEIPT_FIELD_LIMITS.recipientDocument, options, { maxWords: 4 }),
+    amount: (value) => cleanAmount(value, options),
+    description: (value) => cleanString(value, RECEIPT_FIELD_LIMITS.description, options),
+    city: (value) => cleanStructuredString(value, RECEIPT_FIELD_LIMITS.city, options, { maxWords: 15 }),
+    date: (value) => cleanDate(value, options)
+  };
+
+  return Object.fromEntries(receiptFields.flatMap((field) => {
+    const value = cleaners[field](source[field]);
+    return value === undefined ? [] : [[field, value]];
+  }));
 }
 
 export function sanitizeCurrentPayload(serviceType, payload) {
@@ -224,10 +443,10 @@ export function sanitizeCurrentPayload(serviceType, payload) {
 }
 
 export function sanitizePatch(serviceType, patch) {
-  const options = { allowEmpty: false };
+  const options = { allowEmpty: false, rejectOverlong: true };
   return serviceType === 'receipt'
-    ? cleanReceiptPayload(patch, options)
-    : cleanResumePayload(patch, options);
+    ? cleanReceiptPatch(patch, options)
+    : cleanResumePatch(patch, options);
 }
 
 function parseBody(body) {
@@ -314,7 +533,11 @@ export function parseAiAssistantResponse(serviceType, response) {
     throw new AiRequestError('INVALID_AI_RESPONSE');
   }
 
-  const assistantMessage = cleanString(parsed.assistantMessage, 400, { allowEmpty: false });
+  const assistantMessage = cleanString(
+    parsed.assistantMessage,
+    MAX_ASSISTANT_MESSAGE_LENGTH,
+    { allowEmpty: false, rejectOverlong: true }
+  );
   if (!assistantMessage) throw new AiRequestError('INVALID_AI_RESPONSE');
 
   return {

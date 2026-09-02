@@ -28,6 +28,47 @@ test('patch do recibo atualiza somente campos conhecidos sem apagar os demais', 
   assert.equal('status' in result, false);
 });
 
+test('patch do recibo aplica fail-safe a valores inválidos sem alterar os atuais', () => {
+  const current = {
+    payerName: 'Maria',
+    payerDocument: '',
+    recipientName: 'João Atual',
+    recipientDocument: '',
+    amount: '100',
+    description: 'Serviço anterior',
+    city: 'Vitória',
+    date: '2026-08-31'
+  };
+
+  const invalid = applyReceiptAiPatch(current, {
+    payerName: 'Maria Silva',
+    recipientName: '(vazio) - não foi possível inferir o recebedor',
+    amount: 'R$ 450 porque foi pago hoje',
+    description: 'manutenção de computador',
+    city: `Aracruz ${'explicação '.repeat(20)}`,
+    date: 'hoje'
+  });
+
+  assert.equal(invalid.payerName, 'Maria Silva');
+  assert.equal(invalid.recipientName, 'João Atual');
+  assert.equal(invalid.amount, '100');
+  assert.equal(invalid.description, 'manutenção de computador');
+  assert.equal(invalid.city, 'Vitória');
+  assert.equal(invalid.date, '2026-08-31');
+
+  const valid = applyReceiptAiPatch(invalid, {
+    recipientName: 'João Neves',
+    amount: '450',
+    city: 'Aracruz',
+    date: '2026-09-01'
+  });
+
+  assert.equal(valid.recipientName, 'João Neves');
+  assert.equal(valid.amount, '450');
+  assert.equal(valid.city, 'Aracruz');
+  assert.equal(valid.date, '2026-09-01');
+});
+
 test('patch do currículo preserva foto e IDs e não duplica experiência', () => {
   const experience = {
     ...createExperienceItem(),

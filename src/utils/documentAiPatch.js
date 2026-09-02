@@ -17,10 +17,64 @@ const receiptFields = [
   'date'
 ];
 
-function definedFields(source, fields) {
+const receiptFieldLimits = {
+  payerName: 150,
+  payerDocument: 30,
+  recipientName: 150,
+  recipientDocument: 30,
+  amount: 30,
+  description: 300,
+  city: 120,
+  date: 10
+};
+
+const receiptStructuredFields = new Set([
+  'payerName',
+  'payerDocument',
+  'recipientName',
+  'recipientDocument',
+  'city'
+]);
+
+function containsAiPlaceholder(value) {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR');
+
+  return [
+    '(vazio)',
+    'nao informado',
+    'nao foi possivel inferir',
+    'nao ha informacao suficiente',
+    'o usuario nao informou',
+    'nao mencionado',
+    'campo ausente',
+    'desconhecido'
+  ].some((placeholder) => normalized.includes(placeholder));
+}
+
+function isSafeReceiptPatchField(field, value) {
+  if (value.length > receiptFieldLimits[field]) return false;
+  if (field === 'amount') {
+    return /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{1,2})?$/.test(value)
+      && Number(value) > 0;
+  }
+  if (field === 'date') {
+    return /^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$/.test(value);
+  }
+  if (receiptStructuredFields.has(field)) {
+    return !/[\r\n]/.test(value) && !containsAiPlaceholder(value);
+  }
+  return true;
+}
+
+function definedFields(source, fields, validator) {
   if (!source || typeof source !== 'object') return {};
   return Object.fromEntries(fields.flatMap((field) => (
-    typeof source[field] === 'string' && source[field].trim()
+    typeof source[field] === 'string'
+      && source[field].trim()
+      && (!validator || validator(field, source[field].trim()))
       ? [[field, source[field].trim()]]
       : []
   )));
@@ -131,7 +185,7 @@ function mergeSimpleList(currentItems, patches, { createItem, fields, identity }
 export function applyReceiptAiPatch(currentData, patch) {
   return {
     ...currentData,
-    ...definedFields(patch, receiptFields)
+    ...definedFields(patch, receiptFields, isSafeReceiptPatchField)
   };
 }
 
