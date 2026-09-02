@@ -40,11 +40,13 @@ export function useDocumentDraft({
   const mountedRef = useRef(true);
   const conflictRef = useRef(false);
   const authPendingRef = useRef(false);
+  const sessionRequestedRef = useRef(false);
   const [initialized, setInitialized] = useState(false);
   const [sessionVersion, setSessionVersion] = useState(0);
   const [saveState, setSaveState] = useState('checking');
   const [requiresCaptcha, setRequiresCaptcha] = useState(false);
   const [captchaKey, setCaptchaKey] = useState(0);
+  const [sessionReady, setSessionReady] = useState(false);
 
   const environmentReady = isDocumentDraftStorageConfigured() && Boolean(turnstileSiteKey);
 
@@ -122,6 +124,7 @@ export function useDocumentDraft({
     async function initializeDraft() {
       if (!environmentReady) {
         if (!cancelled) {
+          setSessionReady(false);
           setSaveState('local');
           setInitialized(true);
         }
@@ -133,6 +136,7 @@ export function useDocumentDraft({
         if (cancelled) return;
 
         sessionRef.current = session;
+        setSessionReady(Boolean(session));
 
         if (!session) {
           setSaveState('idle');
@@ -213,7 +217,8 @@ export function useDocumentDraft({
     if (authPendingRef.current || sessionRef.current) return;
 
     if (
-      !draftRef.current
+      !sessionRequestedRef.current
+      && !draftRef.current
       && latestSnapshotKeyRef.current === initialSnapshotKeyRef.current
     ) {
       setRequiresCaptcha(false);
@@ -229,6 +234,8 @@ export function useDocumentDraft({
       if (!session) throw new Error('A sessão anônima não foi criada.');
 
       sessionRef.current = session;
+      sessionRequestedRef.current = false;
+      setSessionReady(true);
       setRequiresCaptcha(false);
       setSessionVersion((version) => version + 1);
     } catch {
@@ -241,6 +248,20 @@ export function useDocumentDraft({
   const handleCaptchaError = useCallback(() => {
     setSaveState('error');
   }, []);
+
+  const requestSession = useCallback(() => {
+    if (!environmentReady) return false;
+    if (sessionRef.current) {
+      setSessionReady(true);
+      return true;
+    }
+
+    sessionRequestedRef.current = true;
+    setSaveState('checking');
+    setRequiresCaptcha(true);
+    setCaptchaKey((key) => key + 1);
+    return false;
+  }, [environmentReady]);
 
   const retry = useCallback(() => {
     if (!environmentReady || conflictRef.current) return;
@@ -264,6 +285,9 @@ export function useDocumentDraft({
     requiresCaptcha,
     retry,
     saveState,
+    sessionConfigured: environmentReady,
+    sessionReady,
+    requestSession,
     turnstileSiteKey
   };
 }

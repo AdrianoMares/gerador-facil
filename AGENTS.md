@@ -42,6 +42,7 @@
 - Use variáveis de ambiente para integrações externas e mantenha apenas nomes de variáveis e valores de exemplo seguros em arquivos como `.env.example`.
 - No frontend Vite, considere que variáveis expostas ao cliente não são secretas, inclusive as prefixadas com `VITE_`.
 - Não registre dados sensíveis em logs nem os inclua em mensagens de erro, exemplos, commits ou documentação.
+- Endpoints de IA nunca podem expor tokens da Cloudflare, devem exigir usuário autenticado, limitar o tamanho dos inputs e não podem registrar conteúdo pessoal.
 
 ## Persistência de documentos no Supabase
 

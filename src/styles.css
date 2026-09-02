@@ -546,6 +546,8 @@ a:focus-visible {
   color: #496177;
   font: inherit;
   text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .mode-option span,
@@ -569,11 +571,8 @@ a:focus-visible {
   box-shadow: inset 4px 0 #2e9e6f;
 }
 
-.mode-option:disabled {
-  border-style: dashed;
-  background: #f4f6f8;
-  cursor: not-allowed;
-  opacity: 0.72;
+.mode-option:hover {
+  border-color: #2e9e6f;
 }
 
 .document-autosave {
@@ -638,6 +637,111 @@ a:focus-visible {
 
 .document-form-card > p {
   margin-bottom: 22px;
+}
+
+.ai-assistant > .eyebrow {
+  margin-bottom: 6px;
+}
+
+.ai-assistant > h2 {
+  font-size: 1.55rem;
+}
+
+.ai-privacy-note,
+.ai-missing-fields,
+.ai-alert {
+  border-radius: 9px;
+  padding: 12px 14px;
+  font-size: 0.85rem;
+}
+
+.ai-privacy-note {
+  border: 1px solid #cbd8e2;
+  background: #f4f6f8;
+  color: #496177;
+}
+
+.ai-missing-fields {
+  border-left: 3px solid #d79536;
+  background: #fff8ec;
+  color: #735127;
+}
+
+.ai-alert {
+  margin-top: 14px;
+  margin-bottom: 0 !important;
+  border: 1px solid #e0b9b5;
+  background: #fff5f4;
+  color: #873f39;
+}
+
+.ai-conversation {
+  max-height: 380px;
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+  padding-right: 4px;
+}
+
+.ai-message {
+  max-width: 92%;
+  border-radius: 10px;
+  padding: 11px 13px;
+}
+
+.ai-message strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.75rem;
+}
+
+.ai-message p {
+  margin-bottom: 0;
+  color: inherit;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.ai-message-user {
+  justify-self: end;
+  background: #163b63;
+  color: #ffffff;
+}
+
+.ai-message-assistant {
+  justify-self: start;
+  border: 1px solid #dce3e9;
+  background: #f4f6f8;
+  color: #274760;
+}
+
+.ai-composer {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ai-composer-footer small {
+  color: #6b7f91;
+}
+
+.button:disabled,
+.textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.button:disabled:hover {
+  border-color: #2e9e6f;
+  background: #2e9e6f;
+  transform: none;
 }
 
 .form-grid-two {
@@ -1333,6 +1437,15 @@ a:focus-visible {
   .document-finalization {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .ai-composer-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-composer-footer .button {
+    width: 100%;
   }
 
   .receipt-amount {

@@ -1,4 +1,4 @@
-export function ModeSelector() {
+export function ModeSelector({ mode, onChange }) {
   return (
     <section className="mode-selector" aria-labelledby="mode-selector-title">
       <div>
@@ -6,13 +6,23 @@ export function ModeSelector() {
         <h2 id="mode-selector-title">Modo de preenchimento</h2>
       </div>
       <div className="mode-options" role="group" aria-label="Modo de preenchimento">
-        <button className="mode-option mode-option-active" type="button" aria-pressed="true">
+        <button
+          className={`mode-option${mode === 'manual' ? ' mode-option-active' : ''}`}
+          type="button"
+          aria-pressed={mode === 'manual'}
+          onClick={() => onChange('manual')}
+        >
           <span>Preenchimento Manual</span>
-          <small>Preencha e visualize agora</small>
+          <small>Edite todos os campos diretamente</small>
         </button>
-        <button className="mode-option" type="button" disabled>
+        <button
+          className={`mode-option${mode === 'ai' ? ' mode-option-active' : ''}`}
+          type="button"
+          aria-pressed={mode === 'ai'}
+          onClick={() => onChange('ai')}
+        >
           <span>Criar com IA</span>
-          <small>Em breve</small>
+          <small>Conte os dados e receba ajuda</small>
         </button>
       </div>
     </section>
