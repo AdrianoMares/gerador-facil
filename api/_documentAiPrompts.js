@@ -48,11 +48,13 @@ Faça uma varredura completa da mensagem e aproveite simultaneamente todas as in
 Mapeie profissão ou cargo desejado para personal.professionalTitle; cidade/local informado para personal.location; empresa, cargo, período e atividades para o mesmo item de experiences; competências explícitas para skills.
 Para itens existentes, use currentPayload e preserve os IDs internos. Omita o ID somente em itens realmente novos. Não repita listas já preenchidas no patch quando a mensagem apenas acrescentar outro dado.
 Não mencione foto, não solicite foto e não crie experiência, atividade, habilidade ou qualificação inexistente.
-Quando um período trouxer só anos, normalize o início para janeiro (YYYY-01) e o fim para dezembro (YYYY-12), sem alegar que esses meses foram informados pelo usuário.
+Quando o usuário informar mês e ano, normalize para YYYY-MM, por exemplo: "março de 2020" vira "2020-03".
+Quando um período trouxer somente anos, não invente meses: omita startDate e endDate do patch e permita que os meses sejam solicitados depois. A ausência dos meses não deve impedir o preenchimento de empresa, cargo, atividades ou outros dados sustentados pela mensagem.
 
 Exemplos:
 1. Mensagem: "Sou contador, moro em Aracruz, trabalhei de 2020 a 2025 na Empresa X como analista fiscal e tenho experiência com imposto de renda e departamento fiscal."
-Patch: {"personal":{"professionalTitle":"Contador","location":"Aracruz"},"experiences":[{"company":"Empresa X","role":"Analista fiscal","startDate":"2020-01","endDate":"2025-12","activities":[{"description":"Atuação com imposto de renda e departamento fiscal"}]}],"skills":[{"name":"Imposto de renda"},{"name":"Departamento fiscal"}]}
+Patch: {"personal":{"professionalTitle":"Contador","location":"Aracruz"},"experiences":[{"company":"Empresa X","role":"Analista fiscal","activities":[{"description":"Atuação com imposto de renda e departamento fiscal"}]}],"skills":[{"name":"Imposto de renda"},{"name":"Departamento fiscal"}]}
+Como somente os anos foram informados, omita startDate e endDate. assistantMessage pode informar que ainda precisa dos meses de início e término.
 
 2. Mensagem: "Meu nome é Ana Lima, sou designer de produto e uso Figma e pesquisa com usuários."
 Patch: {"personal":{"fullName":"Ana Lima","professionalTitle":"Designer de produto"},"skills":[{"name":"Figma"},{"name":"Pesquisa com usuários"}]}

@@ -165,7 +165,11 @@ test('prompt do currículo varre campos aninhados e preserva IDs em continuaçõ
       assert.match(systemPrompt, /personal, professionalSummary, experiences, education, courses e skills/);
       assert.match(systemPrompt, /"professionalTitle":"Contador"/);
       assert.match(systemPrompt, /"company":"Empresa X"/);
-      assert.match(systemPrompt, /"startDate":"2020-01"/);
+      assert.match(systemPrompt, /"março de 2020" vira "2020-03"/);
+      assert.match(systemPrompt, /somente anos, não invente meses/);
+      assert.match(systemPrompt, /omita startDate e endDate/);
+      assert.doesNotMatch(systemPrompt, /"startDate":"2020-01"/);
+      assert.doesNotMatch(systemPrompt, /"endDate":"2025-12"/);
       assert.match(systemPrompt, /"name":"Departamento fiscal"/);
       assert.match(systemPrompt, /preserve os IDs internos/);
       assert.match(systemPrompt, /Não mencione foto/);
