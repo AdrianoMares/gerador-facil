@@ -1,4 +1,3 @@
-export const AI_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast';
 export const MAX_AI_BODY_BYTES = 24_000;
 export const MAX_AI_MESSAGE_LENGTH = 4_000;
 export const MAX_AI_CONVERSATION_MESSAGES = 8;
@@ -184,6 +183,68 @@ export function getAiResponseSchema(serviceType) {
     },
     required: ['assistantMessage', 'patch']
   };
+}
+
+function nullableSchema(schema) {
+  return {
+    ...schema,
+    type: Array.isArray(schema.type)
+      ? [...new Set([...schema.type, 'null'])]
+      : [schema.type, 'null']
+  };
+}
+
+function strictNullableObject(schema) {
+  const properties = Object.fromEntries(Object.entries(schema.properties).map(([field, property]) => {
+    if (property.type === 'object') {
+      return [field, strictNullableObject(property)];
+    }
+
+    if (property.type === 'array') {
+      const items = property.items?.type === 'object'
+        ? strictNullableObject(property.items)
+        : property.items;
+      return [field, { ...property, items }];
+    }
+
+    return [field, nullableSchema(property)];
+  }));
+
+  return {
+    ...schema,
+    properties,
+    required: Object.keys(properties)
+  };
+}
+
+export function getOpenAiResponseSchema(serviceType) {
+  const patchSchema = serviceType === 'resume'
+    ? strictNullableObject(patchSchemas.resume)
+    : strictNullableObject(patchSchemas.receipt);
+
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      assistantMessage: { type: 'string', minLength: 1, maxLength: MAX_ASSISTANT_MESSAGE_LENGTH },
+      patch: patchSchema
+    },
+    required: ['assistantMessage', 'patch']
+  };
+}
+
+export function normalizeOpenAiNullableResponse(value) {
+  if (Array.isArray(value)) {
+    return value.map(normalizeOpenAiNullableResponse);
+  }
+
+  if (!isPlainObject(value)) return value;
+
+  return Object.fromEntries(Object.entries(value).flatMap(([field, fieldValue]) => (
+    fieldValue === null
+      ? []
+      : [[field, normalizeOpenAiNullableResponse(fieldValue)]]
+  )));
 }
 
 function isPlainObject(value) {
