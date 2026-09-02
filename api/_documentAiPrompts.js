@@ -10,13 +10,15 @@ O patch é incremental: inclua somente dados novos ou correções solicitadas. N
 Você pode organizar, resumir, reescrever e melhorar textos profissionais fornecidos, sem criar fatos.
 Nunca invente nome, CPF/CNPJ, telefone, e-mail, cidade, datas, valores, empresas, cargos, instituições, cursos, períodos, experiências, formação ou fatos pessoais.
 Use datas completas no formato YYYY-MM-DD e meses de currículo no formato YYYY-MM.
-assistantMessage deve descrever objetivamente os campos que foram organizados ou atualizados, por exemplo: "Organizei o valor, o pagador, a referência, a cidade e a data." Evite mensagens genéricas como "Vou ajudar a preencher" e não afirme que o documento está completo. A validação local informará os campos obrigatórios ainda ausentes.`;
+Se um campo não puder ser inferido com segurança, omita completamente esse campo do patch. Nunca use "(vazio)", "não informado" ou outra explicação como valor de um campo.
+assistantMessage é o único local para explicar dados ausentes. Deve ser curta e descrever objetivamente os campos organizados ou atualizados, por exemplo: "Organizei o valor, o pagador, a referência, a cidade e a data." Evite mensagens genéricas como "Vou ajudar a preencher" e não afirme que o documento está completo. A validação local informará os campos obrigatórios ainda ausentes.`;
 
 function receiptInstructions(currentDate) {
   return `INSTRUÇÕES ESPECÍFICAS PARA RECIBO
 A função principal é EXTRAIR TODOS os campos sustentados pelo texto do usuário.
 Antes de responder, verifique individualmente, mesmo que algum esteja ausente: payerName, payerDocument, amount, description, recipientName, recipientDocument, city e date.
 A ausência de um campo nunca justifica ignorar outros campos encontrados na mesma mensagem.
+Se não houver informação segura para qualquer campo do recibo, OMITA esse campo do patch. NÃO use "(vazio)", "não informado", "não foi possível inferir" nem explicações dentro de payerName, payerDocument, recipientName, recipientDocument, amount, description, city ou date. Explique a ausência somente em assistantMessage.
 
 Mapeamento:
 - payerName: pessoa ou empresa que realizou o pagamento. Reconheça construções como "recebi de Maria Silva", "João me pagou" e "pagamento feito por Empresa XYZ".
@@ -40,7 +42,11 @@ Patch: {"payerName":"João Pereira","amount":"1250","description":"serviço de p
 Se a continuação for "Quem recebeu foi João Neves e foi em Aracruz.", o patch é somente {"recipientName":"João Neves","city":"Aracruz"}.
 
 4. Mensagem: "Maria pagou 200 reais."
-Patch: {"payerName":"Maria","amount":"200"}. Não invente cidade, documento, descrição, recebedor ou data.`;
+Patch: {"payerName":"Maria","amount":"200"}. Não invente cidade, documento, descrição, recebedor ou data.
+
+5. Mensagem: "Recebi R$ 450 de Maria Silva."
+Resposta válida: {"assistantMessage":"Organizei o pagador e o valor. Ainda falta informar quem recebeu e os demais dados necessários.","patch":{"payerName":"Maria Silva","amount":"450"}}
+Resposta proibida: {"patch":{"recipientName":"(vazio) - não foi possível inferir o nome do recebedor"}}`;
 }
 
 const resumeInstructions = `INSTRUÇÕES ESPECÍFICAS PARA CURRÍCULO
@@ -48,6 +54,7 @@ Faça uma varredura completa da mensagem e aproveite simultaneamente todas as in
 Mapeie profissão ou cargo desejado para personal.professionalTitle; cidade/local informado para personal.location; empresa, cargo, período e atividades para o mesmo item de experiences; competências explícitas para skills.
 Para itens existentes, use currentPayload e preserve os IDs internos. Omita o ID somente em itens realmente novos. Não repita listas já preenchidas no patch quando a mensagem apenas acrescentar outro dado.
 Não mencione foto, não solicite foto e não crie experiência, atividade, habilidade ou qualificação inexistente.
+Omita campos estruturados desconhecidos. Nunca preencha nome, cargo, empresa, instituição, curso ou habilidade com "(vazio)", "não informado", "não foi possível inferir" ou qualquer explicação sobre a ausência do dado.
 Quando o usuário informar mês e ano, normalize para YYYY-MM, por exemplo: "março de 2020" vira "2020-03".
 Quando um período trouxer somente anos, não invente meses: omita startDate e endDate do patch e permita que os meses sejam solicitados depois. A ausência dos meses não deve impedir o preenchimento de empresa, cargo, atividades ou outros dados sustentados pela mensagem.
 
