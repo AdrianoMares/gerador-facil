@@ -1,15 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 import {
-  AI_MODEL,
   AiRequestError,
-  getAiResponseSchema,
+  getOpenAiResponseSchema,
   MAX_AI_BODY_BYTES,
+  normalizeOpenAiNullableResponse,
   parseAiAssistantResponse,
   validateAndSanitizeAiRequest
 } from './_documentAiSchemas.js';
 import { buildAiDocumentMessages } from './_documentAiPrompts.js';
 
-const CLOUDFLARE_TIMEOUT_MS = 18_000;
+export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
+
+const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+const OPENAI_TIMEOUT_MS = 20_000;
+const OPENAI_MAX_OUTPUT_TOKENS = 1_600;
 
 function setCommonHeaders(response) {
   response.setHeader('Cache-Control', 'no-store');
@@ -63,45 +67,85 @@ async function authenticateRequest(request, createClientImpl, env) {
   }
 }
 
-function cloudflareRequestBody(input) {
+function openAiRequestBody(input, model) {
   return {
-    messages: buildAiDocumentMessages(input),
-    response_format: {
-      type: 'json_schema',
-      json_schema: getAiResponseSchema(input.serviceType)
+    model,
+    input: buildAiDocumentMessages(input),
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'resodi_document_assist',
+        strict: true,
+        schema: getOpenAiResponseSchema(input.serviceType)
+      }
     },
-    temperature: 0.2,
-    max_tokens: 1_600,
-    stream: false
+    reasoning: {
+      effort: 'none'
+    },
+    store: false,
+    max_output_tokens: OPENAI_MAX_OUTPUT_TOKENS
   };
 }
 
-function cloudflareErrorCode(payload) {
-  const errors = Array.isArray(payload?.errors) ? payload.errors : [];
-  return errors[0]?.code;
+function extractOpenAiOutputText(payload) {
+  const outputItems = Array.isArray(payload?.output) ? payload.output : [];
+  for (const item of outputItems) {
+    if (item?.type !== 'message' || item.role !== 'assistant') continue;
+    const contentItems = Array.isArray(item?.content) ? item.content : [];
+    for (const content of contentItems) {
+      if (content?.type === 'output_text' && typeof content.text === 'string' && content.text.trim()) {
+        return content.text;
+      }
+    }
+  }
+
+  throw new AiRequestError('INVALID_AI_RESPONSE');
 }
 
-async function callCloudflare(input, fetchImpl, env) {
-  const accountId = env.CLOUDFLARE_ACCOUNT_ID;
-  const apiToken = env.CLOUDFLARE_AI_API_TOKEN;
-  if (!accountId || !apiToken) throw new Error('AI_NOT_CONFIGURED');
+function parseOpenAiStructuredOutput(serviceType, payload) {
+  if (payload?.status && payload.status !== 'completed') {
+    throw new AiRequestError('INVALID_AI_RESPONSE');
+  }
+
+  const outputText = extractOpenAiOutputText(payload);
+  let parsed;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch {
+    throw new AiRequestError('INVALID_AI_RESPONSE');
+  }
+
+  return parseAiAssistantResponse(
+    serviceType,
+    normalizeOpenAiNullableResponse(parsed)
+  );
+}
+
+async function callOpenAi(input, fetchImpl, env) {
+  const apiKey = env.OPENAI_API_KEY;
+  const model = env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  if (!apiKey) throw new Error('AI_NOT_CONFIGURED');
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), CLOUDFLARE_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
-    const response = await fetchImpl(
-      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${AI_MODEL}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(cloudflareRequestBody(input)),
-        signal: controller.signal
+    const response = await fetchImpl(OPENAI_RESPONSES_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(openAiRequestBody(input, model)),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new AiRequestError('AI_QUOTA');
       }
-    );
+      throw new AiRequestError('AI_PROVIDER_ERROR');
+    }
 
     let payload;
     try {
@@ -110,19 +154,11 @@ async function callCloudflare(input, fetchImpl, env) {
       throw new AiRequestError('INVALID_AI_RESPONSE');
     }
 
-    if (!response.ok || payload?.success === false) {
-      const code = cloudflareErrorCode(payload);
-      if (response.status === 429 || code === 7505) {
-        throw new AiRequestError('AI_QUOTA');
-      }
-      throw new AiRequestError('AI_PROVIDER_ERROR');
-    }
-
-    const result = payload?.result?.response;
-    return parseAiAssistantResponse(input.serviceType, result);
+    return parseOpenAiStructuredOutput(input.serviceType, payload);
   } catch (error) {
     if (error?.name === 'AbortError') throw new AiRequestError('AI_TIMEOUT');
-    throw error;
+    if (error instanceof AiRequestError) throw error;
+    throw new AiRequestError('AI_PROVIDER_ERROR');
   } finally {
     clearTimeout(timeout);
   }
@@ -164,7 +200,7 @@ export function createAiDocumentAssistHandler({
       if (!user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
 
       const input = validateAndSanitizeAiRequest(request.body);
-      const result = await callCloudflare(input, fetchImpl, env);
+      const result = await callOpenAi(input, fetchImpl, env);
       return sendJson(response, 200, result);
     } catch (error) {
       const { status, code } = publicError(error);
