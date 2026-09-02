@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:ai": "node --test tests/ai-document-assist.test.js tests/document-ai-patch.test.js tests/vercel-routing.test.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.0",

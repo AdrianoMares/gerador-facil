@@ -21,5 +21,11 @@ export default defineConfig([
         sourceType: 'module'
       }
     }
+  },
+  {
+    files: ['api/**/*.js', 'tests/**/*.js'],
+    languageOptions: {
+      globals: globals.node
+    }
   }
 ]);

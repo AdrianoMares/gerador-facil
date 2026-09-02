@@ -1,4 +1,4 @@
-import { validateRequiredFields } from '../../utils/validators';
+import { validateRequiredFields } from '../../utils/validators.js';
 
 let itemSequence = 0;
 
