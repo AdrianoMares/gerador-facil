@@ -52,6 +52,12 @@
 
 ## Persistência de documentos no Supabase
 
+- `orders` representam exclusivamente o estado financeiro; `service_requests`, o estado operacional.
+- Uma `service_request` só nasce server-side a partir de uma `order` com status `paid`; o fulfillment é idempotente.
+- Usuários comuns não criam nem alteram `service_requests`.
+- O checkout de serviços preserva os aceites jurídicos vigentes no momento da contratação; novas versões não alteram contratos históricos.
+- Não duplique dados pessoais ou sensíveis em `service_requests`.
+
 - Rascunhos usam ownership por `auth.uid()` e políticas RLS.
 - Os modos Manual e IA compartilham o mesmo payload estruturado.
 - Os estados `payment_pending` e `paid` são controlados exclusivamente pelo backend.

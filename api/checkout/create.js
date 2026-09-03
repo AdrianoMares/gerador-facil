@@ -37,7 +37,7 @@ function publicError(error) {
   if (['INVALID_BODY', 'UNSUPPORTED_FIELD', 'INVALID_PRODUCT_CODE', 'INVALID_RESOURCE_ID'].includes(code)) {
     return { status: 400, code };
   }
-  if (code === 'PRODUCT_NOT_AVAILABLE') return { status: 409, code };
+  if (['PRODUCT_NOT_AVAILABLE', 'LEGAL_ACCEPTANCE_REQUIRED'].includes(code)) return { status: 409, code };
   if (['INVALID_FULFILLMENT', 'INVALID_DOCUMENT_RESOURCE'].includes(code)) return { status: 422, code };
   if (code === 'AUTH_NOT_CONFIGURED') return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
   return { status: 500, code: 'CHECKOUT_UNAVAILABLE' };

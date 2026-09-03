@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test:ai": "node --test tests/ai-document-assist.test.js tests/ai-transcribe.test.js tests/checkout-create.test.js tests/document-ai-patch.test.js tests/document-download.test.js tests/formatters.test.js tests/vercel-routing.test.js tests/legal-foundation.test.js"
+    "test:ai": "node --test tests/ai-document-assist.test.js tests/ai-transcribe.test.js tests/checkout-create.test.js tests/document-ai-patch.test.js tests/document-download.test.js tests/formatters.test.js tests/vercel-routing.test.js tests/legal-foundation.test.js tests/service-requests-foundation.test.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.0",
