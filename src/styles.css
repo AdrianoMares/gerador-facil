@@ -1710,3 +1710,58 @@ a:focus-visible {
     text-align: left;
   }
 }
+
+@media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 0;
+    height: auto;
+  }
+
+  #root {
+    min-height: 0;
+    display: block;
+  }
+
+  .header,
+  .footer,
+  .tool-page > :not(.document-workspace),
+  .document-workspace > :not(.preview-panel) {
+    display: none !important;
+  }
+
+  main,
+  .tool-page,
+  .document-workspace,
+  .preview-panel {
+    display: block;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .tool-page {
+    width: 100%;
+    max-width: none;
+  }
+
+  .preview-panel {
+    visibility: visible;
+  }
+
+  .preview-panel > * {
+    display: none !important;
+  }
+
+  .preview-panel::after {
+    content: 'Esta é apenas uma prévia. O documento final estará disponível para download após a conclusão do pagamento.';
+    display: block;
+    margin: 0;
+    padding: 0;
+    color: #0d2742;
+    font: 16px/1.5 'Manrope', sans-serif;
+  }
+}
