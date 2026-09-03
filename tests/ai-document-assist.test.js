@@ -394,6 +394,30 @@ test('prompt do currículo varre campos aninhados e preserva IDs em continuaçõ
   }
 });
 
+test('prompt do currículo gera resumo automático somente com evidências suficientes', () => {
+  const messages = buildAiDocumentMessages(promptInput(
+    'resume',
+    'Sou contador, formado em Ciências Contábeis, trabalhei como analista fiscal e atuo com imposto de renda, fechamento fiscal e atendimento a clientes.'
+  ));
+  const systemPrompt = messages[0].content;
+
+  assert.match(systemPrompt, /Gere professionalSummary automaticamente na mesma resposta/);
+  assert.match(systemPrompt, /identidade profissional clara/);
+  assert.match(systemPrompt, /pelo menos dois grupos de evidências/);
+  assert.match(systemPrompt, /2 a 4 frases curtas/);
+  assert.match(systemPrompt, /Contador com formação em Ciências Contábeis e experiência na área fiscal/);
+});
+
+test('prompt do resumo profissional proíbe invenções e mantém nullable quando insuficiente', () => {
+  const messages = buildAiDocumentMessages(promptInput('resume', 'Sou designer de produto e uso Figma.'));
+  const systemPrompt = messages[0].content;
+
+  assert.match(systemPrompt, /Não invente qualificações, resultados, especializações nem tempo de experiência/);
+  assert.match(systemPrompt, /professionalSummary permanece null/);
+  assert.match(systemPrompt, /não inventa duração, resultados ou qualificações/);
+  assert.deepEqual(getOpenAiResponseSchema('resume').properties.patch.properties.professionalSummary.type, ['string', 'null']);
+});
+
 test('rejeita métodos diferentes de POST', async () => {
   const handler = createAiDocumentAssistHandler({ createClientImpl, fetchImpl: openAiSuccess(), env });
   const result = await invoke(handler, { method: 'GET' });

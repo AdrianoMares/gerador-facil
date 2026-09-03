@@ -1,4 +1,5 @@
 import { formatResumePeriod } from './resumeUtils';
+import { formatBrazilianPhone } from '../../utils/formatters';
 
 function ResumeSection({ title, children, emptyMessage }) {
   return (
@@ -70,7 +71,7 @@ export function ResumePreview({ data }) {
             </header>
 
             <div className="resume-contacts">
-              <span>{personal.phone || 'Telefone'}</span>
+              <span>{personal.phone ? formatBrazilianPhone(personal.phone) : 'Telefone'}</span>
               <span>{personal.email || 'E-mail'}</span>
               <span>{personal.location || 'Cidade/UF'}</span>
             </div>
