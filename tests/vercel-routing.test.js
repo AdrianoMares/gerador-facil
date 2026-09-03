@@ -17,6 +17,31 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(existsSync(new URL('../api/documents/download.js', import.meta.url)), true);
 });
 
+test('arquivos de SEO não caem no fallback da SPA', () => {
+  assert.equal(fallbackPattern.test('/sitemap.xml'), false);
+  assert.equal(fallbackPattern.test('/robots.txt'), false);
+});
+
+test('sitemap contém XML bem formado e somente URLs públicas indexáveis', () => {
+  const sitemap = readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
+  const urls = [...sitemap.matchAll(/<url><loc>([^<]+)<\/loc><\/url>/g)].map((match) => match[1]);
+  const expected = [
+    'https://resodi.com.br/',
+    'https://resodi.com.br/ferramentas',
+    'https://resodi.com.br/ferramentas/gerador-de-recibo',
+    'https://resodi.com.br/ferramentas/gerador-de-curriculo',
+    'https://resodi.com.br/precos'
+  ];
+
+  assert.match(sitemap, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+  assert.match(sitemap, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+  assert.match(sitemap, /<\/urlset>\s*$/);
+  assert.deepEqual(urls, expected);
+  assert.equal(sitemap.includes('<priority>'), false);
+  assert.equal(sitemap.includes('<changefreq>'), false);
+  assert.equal(sitemap.includes('<lastmod>'), false);
+});
+
 test('fallback da SPA mantém deep links dos geradores', () => {
   assert.equal(fallbackPattern.test('/'), true);
   assert.equal(fallbackPattern.test('/ferramentas/gerador-de-recibo'), true);
