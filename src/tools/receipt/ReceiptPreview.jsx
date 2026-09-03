@@ -1,5 +1,6 @@
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { amountToWordsBRL, formatReceiptDate } from './receiptUtils';
+import { PreviewWatermark } from '../../components/PreviewWatermark';
 
 function display(value, fallback) {
   return value?.trim() || fallback;
@@ -14,7 +15,8 @@ export function ReceiptPreview({ data }) {
         <span className="eyebrow">Atualização em tempo real</span>
         <h2 id="receipt-preview-title">Prévia do recibo</h2>
       </div>
-      <article className="receipt-paper">
+      <div className="protected-preview-content">
+        <article className="receipt-paper">
         <header className="receipt-header">
           <div>
             <span className="receipt-kicker">Comprovante de pagamento</span>
@@ -50,7 +52,10 @@ export function ReceiptPreview({ data }) {
           {data.recipientDocument && <span>CPF/CNPJ {data.recipientDocument}</span>}
           <small>Assinatura do recebedor</small>
         </footer>
-      </article>
+          <PreviewWatermark />
+        </article>
+        <p className="print-preview-message">Esta é apenas uma prévia. O documento final estará disponível para download após a conclusão do pagamento.</p>
+      </div>
     </section>
   );
 }

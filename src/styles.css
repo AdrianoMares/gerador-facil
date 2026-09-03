@@ -843,6 +843,79 @@ a:focus-visible {
   font-size: 1.35rem;
 }
 
+.protected-preview-content {
+  position: relative;
+}
+
+.preview-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.preview-watermark span {
+  color: rgb(22 59 99 / 17%);
+  font-size: clamp(1rem, 3vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-align: center;
+  transform: rotate(-25deg);
+  white-space: nowrap;
+}
+
+.preview-watermark span:nth-child(2) {
+  transform: translateX(12%) rotate(-25deg);
+}
+
+.preview-watermark span:nth-child(3) {
+  transform: translateX(-8%) rotate(-25deg);
+}
+
+.receipt-paper,
+.resume-paper {
+  position: relative;
+}
+
+.print-preview-message {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .preview-panel,
+  .print-preview-message,
+  .print-preview-message * {
+    visibility: visible !important;
+  }
+
+  .preview-panel {
+    position: static !important;
+  }
+
+  .preview-panel > :not(.protected-preview-content):not(.resume-paper-wrap):not(.print-preview-message),
+  .protected-preview-content > :not(.print-preview-message),
+  .resume-paper-wrap > * {
+    display: none !important;
+  }
+
+  .print-preview-message {
+    display: block;
+    margin: 24px;
+    color: #0d2742;
+    font-size: 16pt;
+  }
+}
+
 .receipt-paper {
   min-height: 560px;
   display: flex;
