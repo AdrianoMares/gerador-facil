@@ -24,11 +24,11 @@ export function Footer() {
             <Link to="/politica-de-privacidade">Política de Privacidade</Link>
           </nav>
           <div className="footer-identification">
-            <span>Identificação</span>
-            <p>CNPJ {siteIdentity.cnpj}</p>
+            <span>Contato</span>
+            <a href={`mailto:${siteIdentity.contactEmail}`}>{siteIdentity.contactEmail}</a>
           </div>
         </div>
-        <div className="footer-bottom">© {year} {siteIdentity.brand}. Todos os direitos reservados.</div>
+        <div className="footer-bottom">© {year} {siteIdentity.brand}. CNPJ {siteIdentity.cnpj}. Todos os direitos reservados.</div>
       </div>
     </footer>
   );
