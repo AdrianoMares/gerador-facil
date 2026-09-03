@@ -43,6 +43,8 @@
 - No frontend Vite, considere que variáveis expostas ao cliente não são secretas, inclusive as prefixadas com `VITE_`.
 - Não registre dados sensíveis em logs nem os inclua em mensagens de erro, exemplos, commits ou documentação.
 - Endpoints de IA nunca podem expor tokens da Cloudflare, devem exigir usuário autenticado, limitar o tamanho dos inputs e não podem registrar conteúdo pessoal.
+- Áudio e transcrições são dados sensíveis do usuário: não persista áudio, não registre conteúdo de áudio ou transcrição e exija autenticação em todos os endpoints de voz.
+- `OPENAI_API_KEY` deve permanecer exclusivamente no backend e nunca pode ser enviada ou exposta ao frontend.
 
 ## Persistência de documentos no Supabase
 
