@@ -90,6 +90,27 @@ test('checkout encaminha somente produto e recurso à função segura', async ()
   assert.equal(calls[0].options.global.headers.Authorization, 'Bearer valid-token');
 });
 
+test('checkout retorna a pendência jurídica resolvida pelo banco para serviços', async () => {
+  const handler = createCheckoutHandler({
+    env,
+    createClientImpl: () => ({
+      auth: { async getUser() { return { data: { user: { id: 'user-id' } }, error: null }; } },
+      async rpc() { return { data: null, error: { message: 'LEGAL_ACCEPTANCE_REQUIRED' } }; }
+    })
+  });
+
+  const result = await invoke(handler, {
+    authorization: 'Bearer valid-token',
+    body: { productCode: 'future_service', resourceId: null }
+  });
+
+  assert.deepEqual(result, {
+    status: 409,
+    body: { error: 'LEGAL_ACCEPTANCE_REQUIRED' },
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' }
+  });
+});
+
 test('serviço do frontend não envia valores financeiros e trata falha', async () => {
   let request;
   const result = await createCheckoutOrder(
