@@ -58,7 +58,7 @@ export function ReceiptPage() {
         )}
         <ReceiptPreview data={receiptData} />
       </div>
-      <DocumentFinalization validation={validation} />
+      <DocumentFinalization validation={validation} productCode="receipt_pdf" resourceId={draftState.draftId} />
     </div>
   );
 }

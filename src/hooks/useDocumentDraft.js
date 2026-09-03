@@ -47,6 +47,7 @@ export function useDocumentDraft({
   const [requiresCaptcha, setRequiresCaptcha] = useState(false);
   const [captchaKey, setCaptchaKey] = useState(0);
   const [sessionReady, setSessionReady] = useState(false);
+  const [draftId, setDraftId] = useState(null);
 
   const environmentReady = isDocumentDraftStorageConfigured() && Boolean(turnstileSiteKey);
 
@@ -81,6 +82,7 @@ export function useDocumentDraft({
           });
 
       draftRef.current = savedDraft;
+      if (mountedRef.current) setDraftId(savedDraft.id);
       lastSavedSnapshotKeyRef.current = snapshotKey(snapshot);
 
       if (mountedRef.current) {
@@ -155,6 +157,7 @@ export function useDocumentDraft({
           };
 
           draftRef.current = draft;
+          setDraftId(draft.id);
           lastSavedSnapshotKeyRef.current = snapshotKey(hydratedSnapshot);
 
           if (latestSnapshotKeyRef.current === initialSnapshotKeyRef.current) {
@@ -287,6 +290,7 @@ export function useDocumentDraft({
     saveState,
     sessionConfigured: environmentReady,
     sessionReady,
+    draftId,
     requestSession,
     turnstileSiteKey
   };

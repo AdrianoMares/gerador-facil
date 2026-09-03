@@ -1029,6 +1029,67 @@ a:focus-visible {
   font-weight: 600;
 }
 
+.checkout-page {
+  max-width: 760px;
+}
+
+.checkout-page > h1 {
+  margin-bottom: 24px;
+}
+
+.checkout-card,
+.checkout-notice {
+  border: 1px solid #cbd8e2;
+  border-radius: 14px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+.checkout-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 0 20px;
+}
+
+.checkout-item h2,
+.checkout-notice h2 {
+  margin-bottom: 6px;
+  font-size: 1.15rem;
+}
+
+.checkout-item p,
+.checkout-item small,
+.checkout-status,
+.checkout-notice p {
+  color: #526a7d;
+}
+
+.checkout-item p,
+.checkout-notice p {
+  margin-bottom: 0;
+}
+
+.checkout-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid #dce3e9;
+  padding-top: 18px;
+  color: #163b63;
+  font-size: 1.06rem;
+}
+
+.checkout-status {
+  margin: 18px 0 0;
+}
+
+.checkout-notice {
+  margin-top: 18px;
+  border-color: #e7d4ac;
+  background: #fffaf0;
+}
+
 .resume-form {
   display: grid;
   gap: 24px;
@@ -1501,6 +1562,11 @@ a:focus-visible {
   .document-finalization {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .checkout-item {
+    flex-direction: column;
+    gap: 8px;
   }
 
   .ai-composer-footer {
