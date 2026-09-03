@@ -156,6 +156,47 @@ a {
   gap: 20px;
 }
 
+.services-catalog {
+  display: grid;
+  gap: 42px;
+}
+
+.service-category h2 {
+  margin-bottom: 18px;
+  font-size: 1.5rem;
+}
+
+.service-card {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+}
+
+.service-card p {
+  margin-bottom: 18px;
+}
+
+.service-status {
+  align-self: flex-start;
+  margin-top: auto;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #edf7f2;
+  color: #247f59;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.service-card-link {
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.service-card-link:hover {
+  border-color: #2e9e6f;
+  box-shadow: 0 14px 32px rgb(13 39 66 / 10%);
+  transform: translateY(-2px);
+}
+
 .home-section-muted {
   background: #ffffff;
 }

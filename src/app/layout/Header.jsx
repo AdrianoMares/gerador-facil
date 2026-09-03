@@ -1,5 +1,4 @@
 import { Link, NavLink } from 'react-router-dom';
-import { activeTools } from '../../tools/registry';
 
 export function Header() {
   return (
@@ -11,9 +10,7 @@ export function Header() {
         </Link>
         <nav className="nav" aria-label="Navegação principal">
           <NavLink to="/ferramentas">Ferramentas</NavLink>
-          {activeTools.map((tool) => (
-            <NavLink key={tool.slug} to={tool.path}>{tool.shortName}</NavLink>
-          ))}
+          <NavLink to="/servicos">Serviços</NavLink>
           <NavLink to="/precos">Preços</NavLink>
         </nav>
       </div>
