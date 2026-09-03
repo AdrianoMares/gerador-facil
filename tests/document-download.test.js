@@ -7,7 +7,7 @@ import { downloadFinalDocument } from '../src/services/commerce.js';
 const env = { VITE_SUPABASE_URL: 'https://example.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key' };
 const resourceId = '7e9f8d13-7f09-4ed1-aecb-a35d447f0e7a';
 const draft = { id: resourceId, service_type: 'receipt', status: 'ready', payload: { payerName: 'Ana', recipientName: 'Bruno', amount: '125.50', description: 'Serviço profissional', city: 'São Paulo', date: '2026-09-03' } };
-const entitlement = { resource_id: resourceId, resource_type: 'receipt', revoked_at: null, product: { product_type: 'tool', fulfillment_mode: 'document_download', resource_kind: 'receipt' } };
+const entitlement = { resource_id: resourceId, resource_type: 'receipt', revoked_at: null, product: { product_type: 'tool', fulfillment_mode: 'document_download', resource_kind: 'receipt' }, order: { status: 'paid' } };
 
 function invoke(handler, { method = 'POST', authorization = 'Bearer valid-token', body = { resourceId } } = {}) {
   return new Promise((resolve, reject) => {
@@ -54,6 +54,8 @@ test('download não libera draft inexistente, não pronto ou sem entitlement vá
     { setup: { draftResult: { data: null, error: null } }, expected: 404 },
     { setup: { draftResult: { data: { ...draft, status: 'draft' }, error: null } }, expected: 403 },
     { setup: { entitlements: [] }, expected: 403 },
+    { setup: { entitlements: [{ ...entitlement, order: { status: 'pending_payment' } }] }, expected: 403 },
+    { setup: { entitlements: [{ ...entitlement, order: { status: 'refunded' } }] }, expected: 403 },
     { setup: { entitlements: [{ ...entitlement, revoked_at: '2026-09-03T00:00:00Z' }] }, expected: 403 },
     { setup: { entitlements: [{ ...entitlement, resource_type: 'resume' }] }, expected: 403 },
     { setup: { entitlements: [{ ...entitlement, product: { ...entitlement.product, resource_kind: 'resume' } }] }, expected: 403 }
@@ -62,6 +64,12 @@ test('download não libera draft inexistente, não pronto ou sem entitlement vá
     const handler = createDocumentDownloadHandler({ createClientImpl: createClient(setup), env });
     assert.equal((await invoke(handler)).status, expected);
   }
+});
+
+test('produto inativo não invalida entitlement de pedido pago', async () => {
+  const inactiveEntitlement = { ...entitlement, product: { ...entitlement.product, active: false } };
+  const handler = createDocumentDownloadHandler({ createClientImpl: createClient({ entitlements: [inactiveEntitlement] }), env });
+  assert.equal((await invoke(handler)).status, 200);
 });
 
 test('download autorizado gera PDF final privado', async () => {

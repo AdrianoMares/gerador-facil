@@ -50,7 +50,7 @@ export function createDocumentDownloadHandler({ createClientImpl = createClient,
 
       const { data: entitlements, error: entitlementError } = await client
         .from('entitlements')
-        .select('resource_id, resource_type, revoked_at, product:products!inner(product_type, fulfillment_mode, resource_kind)')
+        .select('resource_id, resource_type, revoked_at, product:products!inner(product_type, fulfillment_mode, resource_kind), order:orders!inner(status)')
         .eq('user_id', userData.user.id)
         .eq('resource_id', draft.id)
         .is('revoked_at', null);
@@ -58,6 +58,7 @@ export function createDocumentDownloadHandler({ createClientImpl = createClient,
       const allowed = (entitlements || []).some((entitlement) => {
         const product = entitlement.product;
         return entitlement.revoked_at === null
+          && entitlement.order?.status === 'paid'
           && entitlement.resource_type === draft.service_type
           && product?.product_type === 'tool'
           && product?.fulfillment_mode === 'document_download'
