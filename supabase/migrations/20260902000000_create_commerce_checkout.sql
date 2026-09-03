@@ -167,7 +167,7 @@ create function public.create_checkout_order(p_product_code text, p_resource_id 
 returns uuid
 language plpgsql
 security definer
-set search_path = pg_catalog, public
+set search_path = ''
 as $$
 declare
   v_user_id uuid := auth.uid();
