@@ -13,6 +13,7 @@ create index order_legal_acceptances_order_idx
 alter table public.order_legal_acceptances enable row level security;
 
 revoke all on table public.order_legal_acceptances from public, anon, authenticated;
+grant select on public.order_legal_acceptances to authenticated;
 grant select, insert, update, delete on public.order_legal_acceptances to service_role;
 
 create policy "Order legal acceptance owners can read"
@@ -60,6 +61,7 @@ for each row execute function private.touch_commerce_updated_at();
 alter table public.service_requests enable row level security;
 
 revoke all on table public.service_requests from public, anon, authenticated;
+grant select on public.service_requests to authenticated;
 grant select, insert, update, delete on public.service_requests to service_role;
 
 create policy "Service request owners can read"
@@ -227,6 +229,7 @@ begin
     join public.legal_acceptances la on la.id = ola.legal_acceptance_id
     join public.legal_documents ld on ld.id = la.legal_document_id
     where ola.order_id = v_order.id
+      and la.user_id = v_order.user_id
       and ld.document_type in ('terms_of_use', 'privacy_policy')
   ) <> 2 then
     raise exception using errcode = 'P0001', message = 'LEGAL_ACCEPTANCE_REQUIRED';

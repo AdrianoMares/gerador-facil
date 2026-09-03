@@ -9,6 +9,9 @@ test('núcleo separa estado financeiro de solicitações operacionais e protege 
   assert.match(migration, /unique \(order_id, legal_acceptance_id\)/);
   assert.match(migration, /alter table public\.order_legal_acceptances enable row level security/);
   assert.match(migration, /revoke all on table public\.order_legal_acceptances from public, anon, authenticated/);
+  assert.match(migration, /grant select on public\.order_legal_acceptances to authenticated/);
+  assert.doesNotMatch(migration, /grant (?:insert|update|delete).*public\.order_legal_acceptances to authenticated/);
+  assert.match(migration, /grant select, insert, update, delete on public\.order_legal_acceptances to service_role/);
   assert.match(migration, /on public\.order_legal_acceptances for select to authenticated/);
   assert.match(migration, /where o\.id = order_id\s+and o\.user_id = \(select auth\.uid\(\)\)/);
 
@@ -20,6 +23,9 @@ test('núcleo separa estado financeiro de solicitações operacionais e protege 
   assert.doesNotMatch(migration, /unique \(order_id\)/);
   assert.match(migration, /alter table public\.service_requests enable row level security/);
   assert.match(migration, /revoke all on table public\.service_requests from public, anon, authenticated/);
+  assert.match(migration, /grant select on public\.service_requests to authenticated/);
+  assert.doesNotMatch(migration, /grant (?:insert|update|delete).*public\.service_requests to authenticated/);
+  assert.match(migration, /grant select, insert, update, delete on public\.service_requests to service_role/);
   assert.match(migration, /on public\.service_requests for select to authenticated/);
   assert.match(migration, /using \(\(select auth\.uid\(\)\) = user_id\)/);
   assert.match(migration, /private\.touch_commerce_updated_at\(\)/);
@@ -46,6 +52,7 @@ test('fulfillment é interno, pago, juridicamente vinculado e idempotente por it
   assert.match(migration, /message = 'ORDER_NOT_PAID'/);
   assert.match(migration, /p\.product_type = 'service'/);
   assert.match(migration, /p\.fulfillment_mode = 'service_request'/);
+  assert.match(migration, /and la\.user_id = v_order\.user_id/);
   assert.doesNotMatch(migration, /p\.active/);
   assert.match(migration, /v_order\.user_id, v_order\.id, v_item\.id, v_item\.product_id, v_item\.product_code, v_item\.product_name/);
   assert.match(migration, /on conflict \(order_item_id\) do nothing/);
