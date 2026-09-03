@@ -490,6 +490,16 @@ a:focus-visible {
   gap: 28px;
 }
 
+.footer strong {
+  font-size: 1.18rem;
+  font-weight: 600;
+}
+
+.footer p {
+  margin: 4px 0 0;
+  color: #c7d3de;
+}
+
 .footer nav,
 .footer-identification {
   display: grid;
@@ -509,9 +519,10 @@ a:focus-visible {
 
 .footer a {
   color: #8ed3b3;
+  font-weight: 600;
 }
 
-.footer-column a:hover {
+.footer a:hover {
   color: #ffffff;
 }
 
