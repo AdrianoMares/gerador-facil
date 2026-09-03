@@ -902,7 +902,7 @@ a:focus-visible {
     position: static !important;
   }
 
-  .preview-panel > :not(.protected-preview-content):not(.resume-paper-wrap),
+  .preview-panel > :not(.protected-preview-content):not(.resume-paper-wrap):not(.print-preview-message),
   .protected-preview-content > :not(.print-preview-message),
   .resume-paper-wrap > * {
     display: none !important;
