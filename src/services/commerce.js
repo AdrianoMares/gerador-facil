@@ -58,3 +58,40 @@ export async function createCheckoutOrder({ productCode, resourceId }, {
 
   return payload;
 }
+
+export async function downloadFinalDocument(resourceId, {
+  fetchImpl = fetch,
+  getSession = getCommerceSession,
+  urlApi = URL,
+  documentRef = globalThis.document
+} = {}) {
+  if (typeof resourceId !== 'string' || !resourceId.trim()) throw new Error('Recurso inválido.');
+  const session = await getSession();
+  if (!session?.access_token) {
+    const error = new Error('Faça uma nova verificação para continuar.');
+    error.code = 'UNAUTHORIZED';
+    throw error;
+  }
+
+  const response = await fetchImpl('/api/documents/download', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resourceId: resourceId.trim() })
+  });
+  if (!response.ok || !response.headers?.get('content-type')?.toLowerCase().startsWith('application/pdf')) {
+    const error = new Error('Seu documento ainda não está disponível para download.');
+    error.code = response.status === 403 ? 'DOCUMENT_NOT_AVAILABLE' : 'DOCUMENT_DOWNLOAD_UNAVAILABLE';
+    throw error;
+  }
+
+  const blob = await response.blob();
+  if (!documentRef?.body) throw new Error('Download indisponível neste navegador.');
+  const objectUrl = urlApi.createObjectURL(blob);
+  const link = documentRef.createElement('a');
+  link.href = objectUrl;
+  link.download = 'documento-resodi.pdf';
+  documentRef.body.appendChild(link);
+  link.click();
+  link.remove();
+  urlApi.revokeObjectURL(objectUrl);
+}

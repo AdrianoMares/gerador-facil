@@ -57,6 +57,8 @@
 - Preços, totais e moedas de compras nunca vêm do frontend; valores monetários usam centavos inteiros.
 - Estados financeiros não podem ser alterados pelo cliente, e entitlements só podem ser concedidos após confirmação de pagamento no backend.
 - Gateways de pagamento devem permanecer isolados da lógica de produtos e fulfillment.
+- PDFs finais só podem ser entregues após autorização server-side: o frontend nunca decide entitlement nem pode liberar a versão final por status enviado pelo cliente.
+- PDFs finais devem ser gerados a partir do draft persistido, não podem ser públicos ou cacheáveis e não devem registrar dados sensíveis.
 
 ## Roteamento na Vercel
 

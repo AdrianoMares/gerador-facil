@@ -10,9 +10,11 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(fallbackPattern.test('/api/ai-document-assist'), false);
   assert.equal(fallbackPattern.test('/api/ai-transcribe'), false);
   assert.equal(fallbackPattern.test('/api/checkout/create'), false);
+  assert.equal(fallbackPattern.test('/api/documents/download'), false);
   assert.equal(existsSync(new URL('../api/ai-document-assist.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/ai-transcribe.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/checkout/create.js', import.meta.url)), true);
+  assert.equal(existsSync(new URL('../api/documents/download.js', import.meta.url)), true);
 });
 
 test('fallback da SPA mantém deep links dos geradores', () => {
