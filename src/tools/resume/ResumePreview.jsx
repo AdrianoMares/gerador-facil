@@ -1,5 +1,6 @@
 import { formatResumePeriod } from './resumeUtils';
 import { formatBrazilianPhone } from '../../utils/formatters';
+import { PreviewWatermark } from '../../components/PreviewWatermark';
 
 function ResumeSection({ title, children, emptyMessage }) {
   return (
@@ -105,8 +106,10 @@ export function ResumePreview({ data }) {
               )}
             </ResumeSection>
           </div>
+          <PreviewWatermark />
         </article>
       </div>
+      <p className="print-preview-message">Esta é apenas uma prévia. O documento final estará disponível para download após a conclusão do pagamento.</p>
     </section>
   );
 }
