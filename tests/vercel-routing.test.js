@@ -30,6 +30,7 @@ test('sitemap contém XML bem formado e somente URLs públicas indexáveis', () 
     'https://resodi.com.br/ferramentas',
     'https://resodi.com.br/ferramentas/gerador-de-recibo',
     'https://resodi.com.br/ferramentas/gerador-de-curriculo',
+    'https://resodi.com.br/servicos',
     'https://resodi.com.br/precos'
   ];
 
@@ -40,6 +41,9 @@ test('sitemap contém XML bem formado e somente URLs públicas indexáveis', () 
   assert.equal(sitemap.includes('<priority>'), false);
   assert.equal(sitemap.includes('<changefreq>'), false);
   assert.equal(sitemap.includes('<lastmod>'), false);
+  assert.equal(sitemap.includes('/servicos/imposto-de-renda/'), false);
+  assert.equal(sitemap.includes('/servicos/mei/'), false);
+  assert.equal(sitemap.includes('/servicos/meu-inss/'), false);
 });
 
 test('fallback da SPA mantém deep links dos geradores', () => {
