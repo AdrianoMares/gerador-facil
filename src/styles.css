@@ -476,14 +476,18 @@ a:focus-visible {
   margin-top: 40px;
   background: #0d2742;
   color: #ffffff;
-  padding: 36px 0;
+  padding: 42px 0 22px;
 }
 
 .footer-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  display: grid;
+  gap: 30px;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) repeat(3, minmax(130px, 1fr));
+  gap: 28px;
 }
 
 .footer strong {
@@ -496,6 +500,23 @@ a:focus-visible {
   color: #c7d3de;
 }
 
+.footer nav,
+.footer-identification {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.footer nav > span,
+.footer-identification > span {
+  margin-bottom: 3px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .footer a {
   color: #8ed3b3;
   font-weight: 600;
@@ -503,6 +524,75 @@ a:focus-visible {
 
 .footer a:hover {
   color: #ffffff;
+}
+
+.footer-identification p {
+  margin: 0;
+}
+
+.footer-bottom {
+  border-top: 1px solid rgb(255 255 255 / 16%);
+  padding-top: 20px;
+  color: #c7d3de;
+  font-size: 0.84rem;
+}
+
+.legal-document-inner {
+  max-width: 860px;
+}
+
+.legal-document-header {
+  margin-bottom: 42px;
+  border-bottom: 1px solid #dce3e9;
+  padding-bottom: 30px;
+}
+
+.legal-document-header h1 {
+  margin-bottom: 22px;
+}
+
+.legal-document-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 30px;
+  margin: 0;
+}
+
+.legal-document-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.legal-document-meta dt {
+  color: #6b7f91;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.legal-document-meta dd {
+  margin: 0;
+  color: #274760;
+  font-weight: 600;
+}
+
+.legal-document-content {
+  display: grid;
+  gap: 30px;
+}
+
+.legal-document-content section {
+  scroll-margin-top: 112px;
+}
+
+.legal-document-content h2 {
+  margin-bottom: 10px;
+  font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+}
+
+.legal-document-content p:last-child {
+  margin-bottom: 0;
 }
 
 .not-found {
@@ -1595,6 +1685,10 @@ a:focus-visible {
   .resume-preview-panel {
     position: static;
   }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -1659,8 +1753,12 @@ a:focus-visible {
   }
 
   .footer-inner {
-    align-items: flex-start;
-    flex-direction: column;
+    gap: 24px;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
   }
 
   .mode-selector {

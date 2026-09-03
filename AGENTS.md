@@ -45,6 +45,10 @@
 - Endpoints de IA nunca podem expor tokens da Cloudflare, devem exigir usuário autenticado, limitar o tamanho dos inputs e não podem registrar conteúdo pessoal.
 - Áudio e transcrições são dados sensíveis do usuário: não persista áudio, não registre conteúdo de áudio ou transcrição e exija autenticação em todos os endpoints de voz.
 - `OPENAI_API_KEY` deve permanecer exclusivamente no backend e nunca pode ser enviada ou exposta ao frontend.
+- Documentos jurídicos são versionados: nunca altere o conteúdo de uma versão publicada; toda alteração material exige nova versão e novo hash.
+- O aceite jurídico deve ser registrado exclusivamente pelo backend; o cliente nunca define versão, hash ou data do aceite. Aceite de Termos não é consentimento universal para LGPD.
+- Nunca solicite senhas ou códigos de autenticação de serviços externos, incluindo Gov.br, Meu INSS, e-mail, bancos, Receita Federal, tokens e códigos 2FA temporários.
+- Dados sensíveis, documentos, dados fiscais, previdenciários e metadados completos de aceites não devem aparecer em logs.
 
 ## Persistência de documentos no Supabase
 

@@ -8,6 +8,8 @@ import { NotFound } from './routes/NotFound';
 import { ReceiptPage } from '../tools/receipt/ReceiptPage';
 import { ResumePage } from '../tools/resume/ResumePage';
 import { CheckoutPage } from './routes/CheckoutPage';
+import { LegalDocumentPage } from '../legal/LegalDocumentPage';
+import { legalDocumentsByPath } from '../legal/legalDocuments';
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +23,8 @@ export const router = createBrowserRouter([
       { path: 'ferramentas/gerador-de-curriculo', element: <ResumePage /> },
       { path: 'precos', element: <Pricing /> },
       { path: 'checkout/:orderId', element: <CheckoutPage /> },
+      { path: 'termos-de-uso', element: <LegalDocumentPage document={legalDocumentsByPath['/termos-de-uso']} /> },
+      { path: 'politica-de-privacidade', element: <LegalDocumentPage document={legalDocumentsByPath['/politica-de-privacidade']} /> },
       { path: '*', element: <NotFound /> }
     ]
   }

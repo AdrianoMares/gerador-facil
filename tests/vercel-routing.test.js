@@ -31,7 +31,9 @@ test('sitemap contém XML bem formado e somente URLs públicas indexáveis', () 
     'https://resodi.com.br/ferramentas/gerador-de-recibo',
     'https://resodi.com.br/ferramentas/gerador-de-curriculo',
     'https://resodi.com.br/servicos',
-    'https://resodi.com.br/precos'
+    'https://resodi.com.br/precos',
+    'https://resodi.com.br/termos-de-uso',
+    'https://resodi.com.br/politica-de-privacidade'
   ];
 
   assert.match(sitemap, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
