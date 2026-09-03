@@ -54,6 +54,9 @@
 - Fotos não devem ser armazenadas em Base64 dentro do payload.
 - Toda migration do Supabase deve ser versionada antes de ser aplicada em produção.
 - A `service_role` nunca deve ser usada ou exposta no frontend.
+- Preços, totais e moedas de compras nunca vêm do frontend; valores monetários usam centavos inteiros.
+- Estados financeiros não podem ser alterados pelo cliente, e entitlements só podem ser concedidos após confirmação de pagamento no backend.
+- Gateways de pagamento devem permanecer isolados da lógica de produtos e fulfillment.
 
 ## Roteamento na Vercel
 

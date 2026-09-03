@@ -58,7 +58,7 @@ export function ResumePage() {
         )}
         <ResumePreview data={resumeData} />
       </div>
-      <DocumentFinalization validation={validation} />
+      <DocumentFinalization validation={validation} productCode="resume_pdf" resourceId={draftState.draftId} />
     </div>
   );
 }

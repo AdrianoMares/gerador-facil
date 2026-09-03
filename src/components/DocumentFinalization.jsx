@@ -1,10 +1,35 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PdfDownloadButton } from './PdfDownloadButton';
+import { createCheckoutOrder } from '../services/commerce';
 
-const unavailableMessage = 'O pagamento para liberar o download será habilitado em breve.';
+const unavailableMessage = 'Pagamento ainda está sendo configurado.';
 
-export function DocumentFinalization({ validation }) {
+export function DocumentFinalization({ validation, productCode, resourceId }) {
   const [message, setMessage] = useState('');
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const navigate = useNavigate();
+
+  async function handleDownload() {
+    if (!validation.valid) return;
+
+    if (!resourceId) {
+      setMessage(unavailableMessage);
+      return;
+    }
+
+    setIsStartingCheckout(true);
+    setMessage('');
+
+    try {
+      const { checkoutUrl } = await createCheckoutOrder({ productCode, resourceId });
+      navigate(checkoutUrl);
+    } catch (error) {
+      setMessage(error.code === 'PRODUCT_NOT_AVAILABLE' ? unavailableMessage : 'Não foi possível preparar o pagamento agora. Tente novamente em instantes.');
+    } finally {
+      setIsStartingCheckout(false);
+    }
+  }
 
   return (
     <section className="document-finalization" aria-labelledby="document-finalization-title">
@@ -19,7 +44,9 @@ export function DocumentFinalization({ validation }) {
         )}
         {message && <p className="download-message" role="status">{message}</p>}
       </div>
-      <PdfDownloadButton type="button" onClick={() => setMessage(unavailableMessage)} />
+      <PdfDownloadButton type="button" disabled={!validation.valid || isStartingCheckout} onClick={handleDownload}>
+        {isStartingCheckout ? 'Preparando...' : 'Baixar PDF'}
+      </PdfDownloadButton>
     </section>
   );
 }
