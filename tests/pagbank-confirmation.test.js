@@ -71,7 +71,11 @@ function providerFetch(calls, status = 'WAITING', mutate = () => {}) {
   };
 }
 
-function backendFixture({ ownerId = 'user-id', fulfillmentError = null } = {}) {
+function backendFixture({
+  ownerId = 'user-id',
+  fulfillmentError = null,
+  serviceFulfillmentError = null
+} = {}) {
   const calls = { clientKeys: [], filters: [], rpc: [], fetch: [] };
   const storedOrder = { ...order, user_id: ownerId };
   const storedPayment = { ...payment };
@@ -120,6 +124,7 @@ function backendFixture({ ownerId = 'user-id', fulfillmentError = null } = {}) {
       }
       if (name === 'confirm_verified_pagbank_payment') return { data: orderId, error: null };
       if (name === 'fulfill_paid_order') return { data: null, error: fulfillmentError };
+      if (name === 'fulfill_paid_service_order') return { data: [], error: serviceFulfillmentError };
       if (name === 'record_verified_pagbank_status') return { data: params.p_provider_status, error: null };
       if (name === 'record_verified_pagbank_partial_refund') return { data: orderId, error: null };
       if (name === 'refund_verified_pagbank_payment') return { data: orderId, error: null };
@@ -291,7 +296,7 @@ test('refund parcial preserva payment/order pagos e garante fulfillment idempote
     orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted: true
   });
   assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
-    'record_verified_pagbank_partial_refund', 'fulfill_paid_order'
+    'record_verified_pagbank_partial_refund', 'fulfill_paid_order', 'fulfill_paid_service_order'
   ]);
 });
 
@@ -358,6 +363,7 @@ test('refund acumulado aceita replay igual, avança e transita de parcial para i
     [1200, 1200, 2400]
   );
   assert.equal(fixture.calls.rpc.filter((call) => call.name === 'fulfill_paid_order').length, 3);
+  assert.equal(fixture.calls.rpc.filter((call) => call.name === 'fulfill_paid_service_order').length, 3);
   assert.equal(fixture.calls.rpc.at(-1).name, 'refund_verified_pagbank_payment');
 });
 
@@ -431,7 +437,7 @@ test('PAID confirma financeiramente antes do fulfillment', async () => {
   assert.equal(result.orderStatus, 'paid');
   assert.equal(result.paymentStatus, 'paid');
   assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
-    'confirm_verified_pagbank_payment', 'fulfill_paid_order'
+    'confirm_verified_pagbank_payment', 'fulfill_paid_order', 'fulfill_paid_service_order'
   ]);
 });
 
@@ -449,6 +455,26 @@ test('falha de fulfillment não reverte resultado financeiro pago', async () => 
   assert.equal(result.orderStatus, 'paid');
   assert.equal(result.fulfillmentCompleted, false);
   assert.equal(JSON.stringify(safeLogs).includes(env.PAGBANK_TOKEN), false);
+});
+
+test('falha do fulfillment de serviço não desfaz o fulfillment de ferramenta', async () => {
+  const fixture = backendFixture({ serviceFulfillmentError: { message: 'LEGAL_ACCEPTANCE_REQUIRED' } });
+  const safeLogs = [];
+  const result = await reconcilePagBankPayment({
+    backend: fixture.backend,
+    payment,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID'),
+    logError: (...args) => safeLogs.push(args)
+  });
+  assert.equal(result.orderStatus, 'paid');
+  assert.equal(result.paymentStatus, 'paid');
+  assert.equal(result.fulfillmentCompleted, false);
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
+    'confirm_verified_pagbank_payment', 'fulfill_paid_order', 'fulfill_paid_service_order'
+  ]);
+  assert.equal(safeLogs[0][1].toolFailed, false);
+  assert.equal(safeLogs[0][1].serviceFailed, true);
 });
 
 test('reconciliação posterior tenta novamente o fulfillment de pagamento já confirmado', async () => {
@@ -581,7 +607,10 @@ test('webhook antes dos IDs localiza pelas referências, valida GET e adota ante
   assert.equal(result.status, 200);
   assert.equal(fixture.calls.fetch.length, 1);
   assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
-    'adopt_verified_pagbank_payment_ids', 'confirm_verified_pagbank_payment', 'fulfill_paid_order'
+    'adopt_verified_pagbank_payment_ids',
+    'confirm_verified_pagbank_payment',
+    'fulfill_paid_order',
+    'fulfill_paid_service_order'
   ]);
   assert.equal(fixture.storedPayment.external_order_id, externalOrderId);
   assert.equal(fixture.storedPayment.external_payment_id, externalPaymentId);
@@ -782,6 +811,41 @@ test('migration separa finanças, fulfillment genérico e idempotência backend-
   ]) {
     assert.match(migration, new RegExp(`revoke all on function public\\.${fn}\\s+from public, anon, authenticated`));
     assert.match(migration, new RegExp(`grant execute on function public\\.${fn}\\s+to service_role`));
+  }
+});
+
+test('migration incremental separa fulfillment de ferramentas e serviços com idempotência', () => {
+  const migration = readFileSync(
+    new URL('../supabase/migrations/20260904184500_fix_paid_order_fulfillment_separation.sql', import.meta.url),
+    'utf8'
+  );
+  const toolRpc = migration.match(/create or replace function public\.fulfill_paid_order[\s\S]*?\n\$\$;/)?.[0];
+  const serviceRpc = migration.match(/create or replace function public\.fulfill_paid_service_order[\s\S]*?\n\$\$;/)?.[0];
+  assert.ok(toolRpc);
+  assert.ok(serviceRpc);
+
+  assert.match(toolRpc, /where id = p_order_id\s+for update/);
+  assert.match(toolRpc, /v_order\.status <> 'paid'/);
+  assert.match(toolRpc, /insert into public\.entitlements/);
+  assert.match(toolRpc, /p\.product_type = 'tool'/);
+  assert.match(toolRpc, /p\.fulfillment_mode = 'document_download'/);
+  assert.match(toolRpc, /on conflict \(order_id, product_id, resource_type, resource_id\)[\s\S]*do nothing/);
+  assert.doesNotMatch(toolRpc, /fulfill_paid_service_order|service_requests|LEGAL_ACCEPTANCE_REQUIRED/);
+
+  assert.match(serviceRpc, /where id = p_order_id\s+for update/);
+  assert.match(serviceRpc, /p\.product_type = 'service'/);
+  assert.match(serviceRpc, /p\.fulfillment_mode = 'service_request'/);
+  assert.match(serviceRpc, /if not v_has_service_items then\s+return/);
+  assert.ok(serviceRpc.indexOf('if not v_has_service_items') < serviceRpc.indexOf('LEGAL_ACCEPTANCE_REQUIRED'));
+  assert.match(serviceRpc, /LEGAL_ACCEPTANCE_REQUIRED/);
+  assert.match(serviceRpc, /insert into public\.service_requests/);
+  assert.match(serviceRpc, /on conflict \(order_item_id\) do nothing/);
+  assert.doesNotMatch(serviceRpc, /insert into public\.entitlements/);
+
+  for (const fn of ['fulfill_paid_order', 'fulfill_paid_service_order']) {
+    assert.match(migration, new RegExp(`create or replace function public\\.${fn}\\(p_order_id uuid\\)[\\s\\S]*?security definer\\s+set search_path = ''`));
+    assert.match(migration, new RegExp(`revoke all on function public\\.${fn}\\(uuid\\)\\s+from public, anon, authenticated`));
+    assert.match(migration, new RegExp(`grant execute on function public\\.${fn}\\(uuid\\)\\s+to service_role`));
   }
 });
 
