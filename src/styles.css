@@ -1294,6 +1294,35 @@ a:focus-visible {
   background: #fffaf0;
 }
 
+.checkout-pix-form,
+.checkout-pix-result {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.checkout-pix-form .button,
+.checkout-pix-result .button {
+  justify-self: start;
+}
+
+.checkout-pix-result img {
+  width: min(240px, 100%);
+  height: auto;
+  border: 1px solid #cbd8e2;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.checkout-pix-code {
+  overflow-wrap: anywhere;
+  resize: vertical;
+}
+
+.checkout-pix-error {
+  color: #873f39 !important;
+}
+
 .resume-form {
   display: grid;
   gap: 24px;
