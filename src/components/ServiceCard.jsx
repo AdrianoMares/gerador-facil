@@ -1,10 +1,18 @@
 import { Link } from 'react-router-dom';
+import { formatCurrencyBRL } from '../utils/formatters';
 
 export function ServiceCard({ service }) {
+  const hasPrice = Number.isInteger(service.priceCents) && service.priceCents > 0;
   const content = (
     <>
       <h3>{service.name}</h3>
       <p>{service.description}</p>
+      {hasPrice && (
+        <p>
+          <strong>{formatCurrencyBRL(service.priceCents / 100)}</strong>
+          {service.priceSuffix ? ` ${service.priceSuffix}` : ''}
+        </p>
+      )}
       {service.status === 'planned' && <span className="service-status">Em breve</span>}
     </>
   );
