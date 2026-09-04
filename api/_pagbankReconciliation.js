@@ -19,6 +19,9 @@ function validLocalContext(payment) {
     && payment.order_id === order.id
     && Number.isInteger(payment.amount_cents)
     && payment.amount_cents > 0
+    && Number.isInteger(payment.refunded_amount_cents)
+    && payment.refunded_amount_cents >= 0
+    && payment.refunded_amount_cents <= payment.amount_cents
     && payment.amount_cents === order.total_cents
     && payment.currency === 'BRL'
     && order.currency === 'BRL';
@@ -64,9 +67,20 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
     || !summary || typeof summary !== 'object'
     || !Number.isInteger(summary.total) || summary.total !== originalAmount
     || !Number.isInteger(summary.paid) || summary.paid < 0 || summary.paid > originalAmount
-    || !Number.isInteger(refundedAmount) || refundedAmount < 0 || refundedAmount > originalAmount) {
+    || !Number.isInteger(refundedAmount) || refundedAmount < 0 || refundedAmount > originalAmount
+    || refundedAmount < payment.refunded_amount_cents) {
     throw new Error('PAGBANK_VERIFICATION_MISMATCH');
   }
+
+  const isFullyRefunded = refundedAmount === originalAmount;
+  const isPartiallyRefunded = refundedAmount > 0 && refundedAmount < originalAmount;
+  // PagBank mantém refund parcial como PAID e representa o refund integral como CANCELED.
+  const invalidFinancialSummary = (refundedAmount > 0 && summary.paid !== originalAmount)
+    || (isPartiallyRefunded && charge.status !== 'PAID')
+    || (isFullyRefunded && charge.status !== 'CANCELED')
+    || (refundedAmount === 0 && charge.status === 'PAID' && summary.paid !== originalAmount)
+    || (refundedAmount === 0 && charge.status !== 'PAID' && summary.paid !== 0);
+  if (invalidFinancialSummary) throw new Error('PAGBANK_VERIFICATION_MISMATCH');
 
   return {
     providerStatus: charge.status,
@@ -74,8 +88,8 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
     externalPaymentId: identifiers.externalPaymentId,
     originalAmount,
     refundedAmount,
-    isFullyRefunded: refundedAmount === originalAmount,
-    isPartiallyRefunded: refundedAmount > 0 && refundedAmount < originalAmount
+    isFullyRefunded,
+    isPartiallyRefunded
   };
 }
 
@@ -121,6 +135,13 @@ async function adoptVerifiedIds(backend, payment, verification) {
   return { ...payment, external_order_id: verification.externalOrderId, external_payment_id: verification.externalPaymentId };
 }
 
+async function fulfillPaidOrder({ backend, payment, orderId, logError }) {
+  const { error } = await backend.rpc('fulfill_paid_order', { p_order_id: orderId });
+  if (!error) return true;
+  logError('PagBank fulfillment failed', { paymentId: payment.id, orderId, code: 'FULFILLMENT_FAILED' });
+  return false;
+}
+
 export async function reconcilePagBankPayment({
   backend,
   payment,
@@ -154,13 +175,19 @@ export async function reconcilePagBankPayment({
   }
 
   if (verification.isPartiallyRefunded) {
-    const { error } = await backend.rpc('record_verified_pagbank_partial_refund', {
+    const { data: orderId, error } = await backend.rpc('record_verified_pagbank_partial_refund', {
       p_payment_id: payment.id,
       p_refunded_amount_cents: verification.refundedAmount,
       p_provider_status: verification.providerStatus
     });
-    if (error) throw new Error('PAYMENT_REFUND_UNAVAILABLE');
-    return { orderStatus: 'paid', paymentStatus: 'paid', providerStatus: verification.providerStatus, fulfillmentCompleted: false };
+    if (error || orderId !== payment.order.id) throw new Error('PAYMENT_REFUND_UNAVAILABLE');
+    const fulfillmentCompleted = await fulfillPaidOrder({ backend, payment, orderId, logError });
+    return {
+      orderStatus: 'paid',
+      paymentStatus: 'paid',
+      providerStatus: verification.providerStatus,
+      fulfillmentCompleted
+    };
   }
 
   if (payment.status === 'refunded' || payment.order.status === 'refunded') {
@@ -185,12 +212,7 @@ export async function reconcilePagBankPayment({
   const { data: orderId, error: confirmationError } = await backend.rpc('confirm_verified_pagbank_payment', { p_payment_id: payment.id });
   if (confirmationError || orderId !== payment.order.id) throw new Error('PAYMENT_CONFIRMATION_UNAVAILABLE');
 
-  let fulfillmentCompleted = true;
-  const { error: fulfillmentError } = await backend.rpc('fulfill_paid_order', { p_order_id: orderId });
-  if (fulfillmentError) {
-    fulfillmentCompleted = false;
-    logError('PagBank fulfillment failed', { paymentId: payment.id, orderId, code: 'FULFILLMENT_FAILED' });
-  }
+  const fulfillmentCompleted = await fulfillPaidOrder({ backend, payment, orderId, logError });
 
   return { orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted };
 }

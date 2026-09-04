@@ -75,7 +75,7 @@ function webhookIdentifiers(payload) {
 async function loadKnownPayment(backend, identifiers) {
   const { data: payment, error: paymentError } = await backend
     .from('payments')
-    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, currency, external_order_id, external_payment_id, provider_status')
+    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents')
     .eq('id', identifiers.paymentReference)
     .eq('provider', 'pagbank')
     .eq('provider_environment', 'sandbox')

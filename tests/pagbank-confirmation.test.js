@@ -40,6 +40,7 @@ const payment = {
   external_order_id: externalOrderId,
   external_payment_id: externalPaymentId,
   provider_status: null,
+  refunded_amount_cents: 0,
   order
 };
 
@@ -224,7 +225,58 @@ test('estrutura de refund ausente, nula, inválida ou maior que o total falha se
   }
 });
 
-test('refund parcial preserva payment/order pagos e não executa fulfillment', async () => {
+test('summary rejeita combinações contraditórias de paid, refunded e status', async () => {
+  const mutations = [
+    (body) => { body.charges[0].amount.summary.paid = null; },
+    (body) => { body.charges[0].amount.summary.paid = 1.5; },
+    (body) => { body.charges[0].amount.summary.paid = 4899; },
+    (body) => {
+      body.charges[0].status = 'CANCELED';
+      body.charges[0].amount.summary.paid = 4900;
+      body.charges[0].amount.summary.refunded = 1200;
+    },
+    (body) => { body.charges[0].amount.summary.refunded = 4900; },
+    (body) => {
+      body.charges[0].status = 'CANCELED';
+      body.charges[0].amount.summary.paid = 0;
+      body.charges[0].amount.summary.refunded = 4900;
+    },
+    (body) => {
+      body.charges[0].status = 'WAITING';
+      body.charges[0].amount.summary.paid = 1;
+    }
+  ];
+  for (const mutate of mutations) {
+    const fixture = backendFixture();
+    await assert.rejects(reconcilePagBankPayment({
+      backend: fixture.backend,
+      payment: { ...payment, status: 'paid', order: { ...order, status: 'paid' } },
+      env,
+      fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', mutate)
+    }), /PAGBANK_VERIFICATION_MISMATCH/);
+    assert.deepEqual(fixture.calls.rpc, []);
+  }
+});
+
+test('summary nunca pode regredir o valor de refund já registrado localmente', async () => {
+  const fixture = backendFixture();
+  await assert.rejects(reconcilePagBankPayment({
+    backend: fixture.backend,
+    payment: {
+      ...payment,
+      status: 'paid',
+      refunded_amount_cents: 1200,
+      order: { ...order, status: 'paid' }
+    },
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', (body) => {
+      body.charges[0].amount.summary.refunded = 1000;
+    })
+  }), /PAGBANK_VERIFICATION_MISMATCH/);
+  assert.deepEqual(fixture.calls.rpc, []);
+});
+
+test('refund parcial preserva payment/order pagos e garante fulfillment idempotente', async () => {
   const fixture = backendFixture();
   const paidPayment = { ...payment, status: 'paid', order: { ...order, status: 'paid' } };
   const result = await reconcilePagBankPayment({
@@ -236,12 +288,77 @@ test('refund parcial preserva payment/order pagos e não executa fulfillment', a
     })
   });
   assert.deepEqual(result, {
-    orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted: false
+    orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted: true
   });
-  assert.deepEqual(fixture.calls.rpc, [{
-    name: 'record_verified_pagbank_partial_refund',
-    params: { p_payment_id: paymentId, p_refunded_amount_cents: 1200, p_provider_status: 'PAID' }
-  }]);
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
+    'record_verified_pagbank_partial_refund', 'fulfill_paid_order'
+  ]);
+});
+
+test('refund parcial repete fulfillment após falha temporária sem regredir finanças', async () => {
+  const fixture = backendFixture();
+  let fulfillmentAttempts = 0;
+  const originalRpc = fixture.backend.rpc;
+  fixture.backend.rpc = async (name, params) => {
+    if (name === 'fulfill_paid_order') {
+      fixture.calls.rpc.push({ name, params });
+      fulfillmentAttempts += 1;
+      return fulfillmentAttempts === 1
+        ? { data: null, error: { message: 'temporary failure' } }
+        : { data: null, error: null };
+    }
+    return originalRpc.call(fixture.backend, name, params);
+  };
+  const options = {
+    backend: fixture.backend,
+    payment: { ...payment, status: 'paid', order: { ...order, status: 'paid' } },
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', (body) => {
+      body.charges[0].amount.summary.refunded = 1200;
+    }),
+    logError: () => {}
+  };
+  const first = await reconcilePagBankPayment(options);
+  const retry = await reconcilePagBankPayment(options);
+  assert.equal(first.paymentStatus, 'paid');
+  assert.equal(first.orderStatus, 'paid');
+  assert.equal(first.fulfillmentCompleted, false);
+  assert.equal(retry.fulfillmentCompleted, true);
+  assert.equal(fulfillmentAttempts, 2);
+});
+
+test('refund acumulado aceita replay igual, avança e transita de parcial para integral', async () => {
+  const fixture = backendFixture();
+  const reconcileRefund = (localRefunded, providerRefunded, providerStatus = 'PAID') => (
+    reconcilePagBankPayment({
+      backend: fixture.backend,
+      payment: {
+        ...payment,
+        status: 'paid',
+        refunded_amount_cents: localRefunded,
+        order: { ...order, status: 'paid' }
+      },
+      env,
+      fetchImpl: providerFetch(fixture.calls.fetch, providerStatus, (body) => {
+        body.charges[0].amount.summary.paid = 4900;
+        body.charges[0].amount.summary.refunded = providerRefunded;
+      })
+    })
+  );
+
+  assert.equal((await reconcileRefund(0, 1200)).paymentStatus, 'paid');
+  assert.equal((await reconcileRefund(1200, 1200)).paymentStatus, 'paid');
+  assert.equal((await reconcileRefund(1200, 2400)).paymentStatus, 'paid');
+  assert.equal((await reconcileRefund(2400, 4900, 'CANCELED')).paymentStatus, 'refunded');
+
+  assert.deepEqual(
+    fixture.calls.rpc
+      .filter((call) => call.name === 'record_verified_pagbank_partial_refund')
+      .map((call) => call.params.p_refunded_amount_cents),
+    [1200, 1200, 2400]
+  );
+  assert.equal(fixture.calls.rpc.filter((call) => call.name === 'fulfill_paid_order').length, 3);
+  assert.equal(fixture.calls.rpc.at(-1).name, 'refund_verified_pagbank_payment');
 });
 
 test('refund integral usa summary.refunded, é repetível e não executa fulfillment', async () => {
@@ -259,13 +376,48 @@ test('refund integral usa summary.refunded, é repetível e não executa fulfill
   const first = await reconcilePagBankPayment(options);
   const second = await reconcilePagBankPayment({
     ...options,
-    payment: { ...refundedPayment, status: 'refunded', order: { ...order, status: 'refunded' } }
+    payment: {
+      ...refundedPayment,
+      status: 'refunded',
+      refunded_amount_cents: 4900,
+      order: { ...order, status: 'refunded' }
+    }
   });
   assert.equal(first.orderStatus, 'refunded');
   assert.equal(second.paymentStatus, 'refunded');
   assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
     'refund_verified_pagbank_payment', 'refund_verified_pagbank_payment'
   ]);
+});
+
+test('refund integral recupera estado final quando confirmação PAID local foi perdida', async () => {
+  const fixture = backendFixture();
+  const options = {
+    backend: fixture.backend,
+    payment,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'CANCELED', (body) => {
+      body.charges[0].amount.summary.paid = 4900;
+      body.charges[0].amount.summary.refunded = 4900;
+    })
+  };
+  const first = await reconcilePagBankPayment(options);
+  const retry = await reconcilePagBankPayment({
+    ...options,
+    payment: {
+      ...payment,
+      status: 'refunded',
+      refunded_amount_cents: 4900,
+      order: { ...order, status: 'refunded' }
+    }
+  });
+  assert.equal(first.orderStatus, 'refunded');
+  assert.equal(first.paymentStatus, 'refunded');
+  assert.equal(retry.orderStatus, 'refunded');
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
+    'refund_verified_pagbank_payment', 'refund_verified_pagbank_payment'
+  ]);
+  assert.equal(fixture.calls.rpc.some((call) => call.name === 'fulfill_paid_order'), false);
 });
 
 test('PAID confirma financeiramente antes do fulfillment', async () => {
@@ -568,7 +720,12 @@ test('polling tem limite e libera verificação manual pelo mesmo endpoint', asy
 
 test('migration separa finanças, fulfillment genérico e idempotência backend-only', () => {
   const migration = readFileSync(new URL('../supabase/migrations/20260904000000_confirm_pagbank_payments.sql', import.meta.url), 'utf8');
-  for (const column of ['provider_status text', 'provider_verified_at timestamptz', 'paid_at timestamptz']) {
+  for (const column of [
+    'provider_status text',
+    'provider_verified_at timestamptz',
+    'paid_at timestamptz',
+    'refunded_amount_cents integer not null default 0'
+  ]) {
     assert.match(migration, new RegExp(column));
   }
   assert.match(migration, /create function public\.confirm_verified_pagbank_payment\(p_payment_id uuid\)/);
@@ -595,11 +752,25 @@ test('migration separa finanças, fulfillment genérico e idempotência backend-
   assert.match(migration, /external_order_id = coalesce\(external_order_id, p_external_order_id\)/);
   assert.match(migration, /EXTERNAL_PAYMENT_ID_MISMATCH/);
   assert.match(migration, /create function public\.record_verified_pagbank_partial_refund/);
+  assert.match(migration, /p_provider_status is distinct from 'PAID'/);
+  assert.match(migration, /refunded_amount_cents = p_refunded_amount_cents/);
+  assert.match(migration, /REFUNDED_AMOUNT_CANNOT_REGRESS/);
   assert.match(migration, /create function public\.refund_verified_pagbank_payment/);
+  assert.match(migration, /p_provider_status is distinct from 'CANCELED'/);
   assert.match(migration, /p_refunded_amount_cents <> v_payment\.amount_cents/);
+  assert.match(migration, /v_order\.status = 'pending_payment' and v_payment\.status = 'pending'/);
   assert.match(migration, /set revoked_at = coalesce\(e\.revoked_at, statement_timestamp\(\)\)/);
   assert.match(migration, /p\.fulfillment_mode = 'document_download'/);
   assert.doesNotMatch(migration, /(?:delete|update)\s+public\.service_requests/i);
+  assert.match(migration, /payments_refunded_amount_cents_check\s+check \(refunded_amount_cents >= 0 and refunded_amount_cents <= amount_cents\)/);
+  const partialRefundRpc = migration.match(/create function public\.record_verified_pagbank_partial_refund[\s\S]*?\n\$\$;/)?.[0];
+  const fullRefundRpc = migration.match(/create function public\.refund_verified_pagbank_payment[\s\S]*?\n\$\$;/)?.[0];
+  assert.ok(partialRefundRpc);
+  assert.ok(fullRefundRpc);
+  assert.doesNotMatch(partialRefundRpc, /entitlements|service_requests|fulfill_paid_order/);
+  assert.match(fullRefundRpc, /update public\.entitlements/);
+  assert.match(fullRefundRpc, /p\.fulfillment_mode = 'document_download'/);
+  assert.doesNotMatch(fullRefundRpc, /service_requests|fulfill_paid_order|insert into public\.entitlements/);
   for (const fn of [
     'adopt_verified_pagbank_payment_ids\\(uuid, uuid, text, text\\)',
     'record_pagbank_pix_creation\\(uuid, uuid, text, text, text\\)',

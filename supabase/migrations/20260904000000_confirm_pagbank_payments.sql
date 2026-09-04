@@ -1,7 +1,10 @@
 alter table public.payments
   add column provider_status text,
   add column provider_verified_at timestamptz,
-  add column paid_at timestamptz;
+  add column paid_at timestamptz,
+  add column refunded_amount_cents integer not null default 0,
+  add constraint payments_refunded_amount_cents_check
+    check (refunded_amount_cents >= 0 and refunded_amount_cents <= amount_cents);
 
 create unique index entitlements_order_product_resource_key
   on public.entitlements (order_id, product_id, resource_type, resource_id)
@@ -323,8 +326,7 @@ declare
   v_payment public.payments%rowtype;
   v_order public.orders%rowtype;
 begin
-  if p_provider_status is null
-    or p_provider_status not in ('WAITING', 'PAID', 'DECLINED', 'CANCELED', 'IN_ANALYSIS', 'AUTHORIZED') then
+  if p_provider_status is distinct from 'PAID' then
     raise exception using errcode = 'P0001', message = 'INVALID_PROVIDER_STATUS';
   end if;
 
@@ -361,13 +363,18 @@ begin
     raise exception using errcode = 'P0001', message = 'INVALID_PARTIAL_REFUND_AMOUNT';
   end if;
 
+  if p_refunded_amount_cents < v_payment.refunded_amount_cents then
+    raise exception using errcode = 'P0001', message = 'REFUNDED_AMOUNT_CANNOT_REGRESS';
+  end if;
+
   if v_order.status <> 'paid' or v_payment.status <> 'paid' then
     raise exception using errcode = 'P0001', message = 'INCONSISTENT_PAYMENT_STATE';
   end if;
 
   update public.payments
   set provider_status = p_provider_status,
-      provider_verified_at = statement_timestamp()
+      provider_verified_at = statement_timestamp(),
+      refunded_amount_cents = p_refunded_amount_cents
   where id = v_payment.id;
 
   return v_order.id;
@@ -393,8 +400,7 @@ declare
   v_payment public.payments%rowtype;
   v_order public.orders%rowtype;
 begin
-  if p_provider_status is null
-    or p_provider_status not in ('WAITING', 'PAID', 'DECLINED', 'CANCELED', 'IN_ANALYSIS', 'AUTHORIZED') then
+  if p_provider_status is distinct from 'CANCELED' then
     raise exception using errcode = 'P0001', message = 'INVALID_PROVIDER_STATUS';
   end if;
 
@@ -434,14 +440,18 @@ begin
     if v_order.status <> 'refunded' or v_payment.status <> 'refunded' then
       raise exception using errcode = 'P0001', message = 'INCONSISTENT_PAYMENT_STATE';
     end if;
-  elsif v_order.status <> 'paid' or v_payment.status <> 'paid' then
+  elsif not (
+    (v_order.status = 'paid' and v_payment.status = 'paid')
+    or (v_order.status = 'pending_payment' and v_payment.status = 'pending')
+  ) then
     raise exception using errcode = 'P0001', message = 'INCONSISTENT_PAYMENT_STATE';
   end if;
 
   update public.payments
   set status = 'refunded',
       provider_status = p_provider_status,
-      provider_verified_at = statement_timestamp()
+      provider_verified_at = statement_timestamp(),
+      refunded_amount_cents = p_refunded_amount_cents
   where id = v_payment.id;
 
   update public.orders
