@@ -55,7 +55,7 @@ function expirationDate(now) {
   return new Date(now.getTime() + PIX_EXPIRATION_MINUTES * 60 * 1000).toISOString();
 }
 
-export function buildPagBankPixPayload({ order, payment, customer, now }) {
+export function buildPagBankPixPayload({ order, payment, customer, now, notificationUrl }) {
   return {
     reference_id: order.id,
     customer: {
@@ -78,7 +78,8 @@ export function buildPagBankPixPayload({ order, payment, customer, now }) {
         type: 'PIX',
         pix: { expiration_date: expirationDate(now) }
       }
-    }]
+    }],
+    notification_urls: [notificationUrl]
   };
 }
 
@@ -168,6 +169,15 @@ function serviceClient(createClientImpl, env) {
 
 function configurationReady(env) {
   return env.PAGBANK_ENV === 'sandbox' && Boolean(env.PAGBANK_TOKEN);
+}
+
+function configuredWebhookUrl(env) {
+  try {
+    const url = new URL(env.PAGBANK_WEBHOOK_URL);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function publicError(error) {
@@ -381,6 +391,8 @@ export function createPagBankPixHandler({
       if (await handleExistingState(context) === 'created') {
         return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
       }
+      const notificationUrl = configuredWebhookUrl(env);
+      if (!notificationUrl) throw new Error('PAYMENT_NOT_CONFIGURED');
 
       const { data: claimed, error: claimError } = await backend.rpc('claim_pagbank_pix_submission', {
         p_payment_id: paymentId,
@@ -397,7 +409,13 @@ export function createPagBankPixHandler({
       }
 
       const { order, payment } = context;
-      const pagBankPayload = buildPagBankPixPayload({ order, payment, customer: input.customer, now: now() });
+      const pagBankPayload = buildPagBankPixPayload({
+        order,
+        payment,
+        customer: input.customer,
+        now: now(),
+        notificationUrl
+      });
       let pagBankResponse;
       try {
         pagBankResponse = await callPagBank(fetchImpl, env, { method: 'POST', body: pagBankPayload });

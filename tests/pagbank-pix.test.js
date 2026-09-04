@@ -29,7 +29,8 @@ const env = {
   SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-secret',
   PAGBANK_ENV: 'sandbox',
-  PAGBANK_TOKEN: 'pagbank-secret'
+  PAGBANK_TOKEN: 'pagbank-secret',
+  PAGBANK_WEBHOOK_URL: 'https://test.resodi.com.br/api/payments/pagbank/webhook'
 };
 
 function invoke(handler, { method = 'POST', authorization, body = validBody, headers = {} } = {}) {
@@ -185,7 +186,8 @@ test('payload usa valores e itens do banco e expiração central de 30 minutos',
     order,
     payment: { id: paymentId },
     customer,
-    now: new Date('2026-09-04T12:00:00.000Z')
+    now: new Date('2026-09-04T12:00:00.000Z'),
+    notificationUrl: env.PAGBANK_WEBHOOK_URL
   });
 
   assert.deepEqual(payload.items, [{ reference_id: itemId, name: 'Produto do banco', quantity: 1, unit_amount: 4900 }]);
@@ -193,7 +195,7 @@ test('payload usa valores e itens do banco e expiração central de 30 minutos',
   assert.equal(payload.charges[0].reference_id, paymentId);
   assert.equal(payload.charges[0].payment_method.pix.expiration_date, '2026-09-04T12:30:00.000Z');
   assert.equal('shipping' in payload, false);
-  assert.equal('notification_urls' in payload, false);
+  assert.deepEqual(payload.notification_urls, [env.PAGBANK_WEBHOOK_URL]);
 });
 
 test('resposta valida vínculo e extrai Pix Copia e Cola e PNG', () => {
@@ -222,6 +224,21 @@ test('endpoint autentica antes de criar client service_role e falha fechado fora
   assert.equal(result.status, 503);
   assert.deepEqual(production.calls.clientKeys, ['publishable-key']);
   assert.equal(production.calls.fetch.length, 0);
+});
+
+test('webhook URL ausente falha antes do claim e não deixa pagamento submitting', async () => {
+  const fixture = backendFixture();
+  const withoutWebhook = { ...env };
+  delete withoutWebhook.PAGBANK_WEBHOOK_URL;
+  const result = await invoke(createPagBankPixHandler({
+    createClientImpl: fixture.createClientImpl,
+    env: withoutWebhook,
+    fetchImpl: successfulFetch(fixture.calls)
+  }), { authorization: 'Bearer valid-token' });
+  assert.equal(result.status, 503);
+  assert.equal(fixture.payment.provider_request_state, 'prepared');
+  assert.deepEqual(fixture.calls.claimResults, []);
+  assert.equal(fixture.calls.fetch.length, 0);
 });
 
 test('endpoint restringe pedido ao dono e exige pending_payment', async () => {
