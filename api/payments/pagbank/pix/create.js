@@ -55,7 +55,7 @@ function expirationDate(now) {
   return new Date(now.getTime() + PIX_EXPIRATION_MINUTES * 60 * 1000).toISOString();
 }
 
-export function buildPagBankPixPayload({ order, payment, customer, now }) {
+export function buildPagBankPixPayload({ order, payment, customer, now, notificationUrl }) {
   return {
     reference_id: order.id,
     customer: {
@@ -78,7 +78,8 @@ export function buildPagBankPixPayload({ order, payment, customer, now }) {
         type: 'PIX',
         pix: { expiration_date: expirationDate(now) }
       }
-    }]
+    }],
+    notification_urls: [notificationUrl]
   };
 }
 
@@ -168,6 +169,15 @@ function serviceClient(createClientImpl, env) {
 
 function configurationReady(env) {
   return env.PAGBANK_ENV === 'sandbox' && Boolean(env.PAGBANK_TOKEN);
+}
+
+function configuredWebhookUrl(env) {
+  try {
+    const url = new URL(env.PAGBANK_WEBHOOK_URL);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function publicError(error) {
@@ -327,7 +337,9 @@ async function recoverCreatedPix({ response, backend, fetchImpl, env, order, pay
 
 async function handleExistingState(context) {
   const { payment } = context;
-  if (payment.provider_request_state === 'created') return 'created';
+  const hasExternalIds = PAGBANK_ORDER_PATTERN.test(payment.external_order_id || '')
+    && PAGBANK_CHARGE_PATTERN.test(payment.external_payment_id || '');
+  if (hasExternalIds) return 'created';
   if (payment.provider_request_state === 'submitting' || payment.provider_request_state === 'uncertain') {
     throw new Error('PIX_CREATION_UNCERTAIN');
   }
@@ -381,6 +393,8 @@ export function createPagBankPixHandler({
       if (await handleExistingState(context) === 'created') {
         return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
       }
+      const notificationUrl = configuredWebhookUrl(env);
+      if (!notificationUrl) throw new Error('PAYMENT_NOT_CONFIGURED');
 
       const { data: claimed, error: claimError } = await backend.rpc('claim_pagbank_pix_submission', {
         p_payment_id: paymentId,
@@ -397,7 +411,13 @@ export function createPagBankPixHandler({
       }
 
       const { order, payment } = context;
-      const pagBankPayload = buildPagBankPixPayload({ order, payment, customer: input.customer, now: now() });
+      const pagBankPayload = buildPagBankPixPayload({
+        order,
+        payment,
+        customer: input.customer,
+        now: now(),
+        notificationUrl
+      });
       let pagBankResponse;
       try {
         pagBankResponse = await callPagBank(fetchImpl, env, { method: 'POST', body: pagBankPayload });
@@ -435,12 +455,19 @@ export function createPagBankPixHandler({
       }
 
       try {
-        await updatePayment(backend, payment.id, {
-          external_order_id: result.externalOrderId,
-          external_payment_id: result.externalPaymentId,
-          status: result.status,
-          provider_request_state: result.providerStatus === 'DECLINED' ? 'failed' : 'created'
-        });
+        const { data: recordedPaymentId, error: recordError } = await backend.rpc(
+          'record_pagbank_pix_creation',
+          {
+            p_payment_id: payment.id,
+            p_order_id: order.id,
+            p_external_order_id: result.externalOrderId,
+            p_external_payment_id: result.externalPaymentId,
+            p_provider_status: result.providerStatus
+          }
+        );
+        if (recordError || recordedPaymentId !== payment.id) {
+          throw new Error('PAYMENT_PERSISTENCE_UNAVAILABLE');
+        }
       } catch {
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });

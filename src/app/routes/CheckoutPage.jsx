@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { downloadFinalDocument } from '../../services/commerce';
-import { createPagBankPix } from '../../services/payments';
+import { checkPagBankPixStatus, createPagBankPix, pollPagBankPixStatus } from '../../services/payments';
 
 const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
 
@@ -20,34 +20,69 @@ function formatCents(cents, currency) {
   return formatCurrencyBRL((cents || 0) / 100);
 }
 
+async function fetchCheckoutState(orderId) {
+  if (!supabase) return { loading: false, order: null, entitlements: [] };
+  const [{ data, error }, { data: entitlements, error: entitlementError }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, status, currency, subtotal_cents, total_cents, order_items(product_name, product_description, quantity, unit_price_cents, total_price_cents, resource_id)')
+      .eq('id', orderId)
+      .maybeSingle(),
+    supabase
+      .from('entitlements')
+      .select('resource_id')
+      .eq('order_id', orderId)
+      .is('revoked_at', null)
+  ]);
+  return {
+    loading: false,
+    order: error ? null : data,
+    entitlements: entitlementError || !Array.isArray(entitlements) ? [] : entitlements
+  };
+}
+
 export function CheckoutPage() {
   const { orderId } = useParams();
-  const [state, setState] = useState({ loading: true, order: null });
+  const [state, setState] = useState({ loading: true, order: null, entitlements: [] });
   const [downloadMessage, setDownloadMessage] = useState('');
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', taxId: '' });
   const [pixState, setPixState] = useState({ loading: false, error: '', result: null, copied: false });
+  const [paymentCheck, setPaymentCheck] = useState({ checking: false, timedOut: false, error: '' });
+
+  const loadOrder = useCallback(async () => {
+    const nextState = await fetchCheckoutState(orderId);
+    setState(nextState);
+    return nextState.order;
+  }, [orderId]);
 
   useEffect(() => {
     let active = true;
-
-    async function loadOrder() {
-      if (!supabase) {
-        if (active) setState({ loading: false, order: null });
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, status, currency, subtotal_cents, total_cents, order_items(product_name, product_description, quantity, unit_price_cents, total_price_cents, resource_id)')
-        .eq('id', orderId)
-        .maybeSingle();
-
-      if (active) setState({ loading: false, order: error ? null : data });
-    }
-
-    loadOrder();
+    fetchCheckoutState(orderId)
+      .then((nextState) => { if (active) setState(nextState); })
+      .catch(() => { if (active) setState({ loading: false, order: null, entitlements: [] }); });
     return () => { active = false; };
   }, [orderId]);
+
+  useEffect(() => {
+    if (!pixState.result || state.order?.status !== 'pending_payment') return undefined;
+    const controller = new AbortController();
+
+    pollPagBankPixStatus(state.order.id, { signal: controller.signal })
+      .then(async (result) => {
+        if (controller.signal.aborted) return;
+        if (result.orderStatus === 'paid') await loadOrder();
+        if (!controller.signal.aborted) {
+          setPaymentCheck({ checking: false, timedOut: result.timedOut, error: '' });
+        }
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError' && !controller.signal.aborted) {
+          setPaymentCheck({ checking: false, timedOut: true, error: 'Não foi possível verificar automaticamente.' });
+        }
+      });
+
+    return () => controller.abort();
+  }, [loadOrder, pixState.result, state.order?.id, state.order?.status]);
 
   if (state.loading) {
     return <div className="container page-section checkout-page"><p>Carregando pedido...</p></div>;
@@ -67,7 +102,9 @@ export function CheckoutPage() {
   const items = state.order.order_items || [];
   const pending = state.order.status === 'pending_payment';
   const resourceId = items.find((item) => item.resource_id)?.resource_id;
-  const canDownload = state.order.status === 'paid' && Boolean(resourceId);
+  const canDownload = state.order.status === 'paid'
+    && Boolean(resourceId)
+    && state.entitlements.some((entitlement) => entitlement.resource_id === resourceId);
 
   async function handleDownload() {
     setDownloadMessage('');
@@ -89,6 +126,7 @@ export function CheckoutPage() {
     try {
       const result = await createPagBankPix({ orderId: state.order.id, customer });
       setPixState({ loading: false, error: '', result, copied: false });
+      setPaymentCheck({ checking: true, timedOut: false, error: '' });
     } catch (error) {
       const message = error?.code === 'PIX_CREATION_UNCERTAIN'
         ? 'Não foi possível confirmar a criação do Pix. Aguarde antes de tentar novamente.'
@@ -104,6 +142,17 @@ export function CheckoutPage() {
       setPixState((current) => ({ ...current, copied: true }));
     } catch {
       setPixState((current) => ({ ...current, copied: false }));
+    }
+  }
+
+  async function handleCheckPayment() {
+    setPaymentCheck({ checking: true, timedOut: false, error: '' });
+    try {
+      const result = await checkPagBankPixStatus(state.order.id);
+      if (result.orderStatus === 'paid') await loadOrder();
+      setPaymentCheck({ checking: false, timedOut: result.orderStatus !== 'paid', error: '' });
+    } catch {
+      setPaymentCheck({ checking: false, timedOut: true, error: 'Não foi possível verificar o pagamento agora.' });
     }
   }
 
@@ -167,6 +216,13 @@ export function CheckoutPage() {
               <button className="button" type="button" onClick={handleCopyPix}>Copiar código</button>
               {pixState.copied && <p role="status">Código Pix copiado.</p>}
               <p>Status: <strong>Aguardando pagamento</strong></p>
+              {paymentCheck.checking && <p role="status">Verificando pagamento automaticamente...</p>}
+              {paymentCheck.timedOut && (
+                <button className="button" type="button" onClick={handleCheckPayment} disabled={paymentCheck.checking}>
+                  Verificar pagamento
+                </button>
+              )}
+              {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
               <p>Expira em: <strong>{new Date(pixState.result.pix.expiresAt).toLocaleString('pt-BR')}</strong></p>
               <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
             </div>
@@ -177,6 +233,12 @@ export function CheckoutPage() {
         <section className="checkout-notice" aria-live="polite">
           <h2>Pagamento ainda não disponível</h2>
           <p>Estamos finalizando a configuração das formas de pagamento.</p>
+        </section>
+      )}
+      {state.order.status === 'paid' && (
+        <section className="checkout-notice" aria-live="polite">
+          <h2>Pagamento confirmado</h2>
+          <p>O PagBank confirmou o pagamento deste pedido.</p>
         </section>
       )}
       {canDownload && (
