@@ -37,19 +37,25 @@ using (exists (
 alter table public.payments
   add column payment_method text,
   add column provider_environment text,
+  add column provider_request_state text,
+  add column provider_request_started_at timestamptz,
   add constraint payments_method_check check (
     payment_method is null or payment_method in ('pix', 'credit_card', 'boleto')
   ),
   add constraint payments_provider_environment_check check (
     provider_environment is null or provider_environment in ('sandbox', 'production')
+  ),
+  add constraint payments_provider_request_state_check check (
+    provider_request_state is null
+    or provider_request_state in ('prepared', 'submitting', 'created', 'uncertain', 'failed')
   );
 
 create unique index payments_provider_external_order_key
-  on public.payments (provider, external_order_id)
+  on public.payments (provider, provider_environment, external_order_id)
   where external_order_id is not null;
 
 create unique index payments_provider_external_payment_key
-  on public.payments (provider, external_payment_id)
+  on public.payments (provider, provider_environment, external_payment_id)
   where external_payment_id is not null;
 
 create unique index payments_one_pending_pagbank_pix_sandbox_per_order_key
@@ -132,6 +138,7 @@ begin
     provider,
     provider_environment,
     payment_method,
+    provider_request_state,
     status,
     amount_cents,
     currency
@@ -140,6 +147,7 @@ begin
     'pagbank',
     'sandbox',
     'pix',
+    'prepared',
     'pending',
     v_order.total_cents,
     v_order.currency
@@ -153,4 +161,71 @@ $$;
 revoke all on function public.prepare_pagbank_pix_payment(uuid, uuid, text, text, text, text, text)
   from public, anon, authenticated;
 grant execute on function public.prepare_pagbank_pix_payment(uuid, uuid, text, text, text, text, text)
+  to service_role;
+
+create function public.claim_pagbank_pix_submission(
+  p_payment_id uuid,
+  p_order_id uuid,
+  p_user_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_payment public.payments%rowtype;
+  v_order public.orders%rowtype;
+begin
+  select * into v_payment
+  from public.payments
+  where id = p_payment_id
+  for update;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'PAYMENT_NOT_FOUND';
+  end if;
+
+  select * into v_order
+  from public.orders
+  where id = p_order_id;
+
+  if not found
+    or v_payment.order_id is distinct from v_order.id
+    or v_order.user_id is distinct from p_user_id then
+    raise exception using errcode = 'P0001', message = 'ORDER_NOT_FOUND';
+  end if;
+
+  if v_order.status <> 'pending_payment' then
+    raise exception using errcode = 'P0001', message = 'ORDER_NOT_PENDING_PAYMENT';
+  end if;
+
+  if v_payment.provider <> 'pagbank'
+    or v_payment.provider_environment <> 'sandbox'
+    or v_payment.payment_method <> 'pix'
+    or v_payment.status <> 'pending' then
+    raise exception using errcode = 'P0001', message = 'INVALID_PAYMENT_ATTEMPT';
+  end if;
+
+  if v_payment.external_order_id is not null
+    or v_payment.external_payment_id is not null
+    or v_payment.provider_request_state is distinct from 'prepared' then
+    return false;
+  end if;
+
+  update public.payments
+  set provider_request_state = 'submitting',
+      provider_request_started_at = statement_timestamp()
+  where id = v_payment.id
+    and provider_request_state = 'prepared'
+    and external_order_id is null
+    and external_payment_id is null;
+
+  return found;
+end;
+$$;
+
+revoke all on function public.claim_pagbank_pix_submission(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.claim_pagbank_pix_submission(uuid, uuid, uuid)
   to service_role;

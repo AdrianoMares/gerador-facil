@@ -94,11 +94,19 @@ function validSandboxQrUrl(value) {
   }
 }
 
-export function validatePagBankPixResponse(payload, { order, payment }) {
+export function validatePagBankPixResponse(payload, {
+  order,
+  payment,
+  expectedExternalOrderId = null,
+  expectedExternalPaymentId = null
+}) {
   if (!payload || typeof payload !== 'object' || !PAGBANK_ORDER_PATTERN.test(payload.id || '')) {
     throw new Error('INVALID_PAGBANK_RESPONSE');
   }
   if (payload.reference_id !== undefined && payload.reference_id !== order.id) {
+    throw new Error('INVALID_PAGBANK_RESPONSE');
+  }
+  if (expectedExternalOrderId && payload.id !== expectedExternalOrderId) {
     throw new Error('INVALID_PAGBANK_RESPONSE');
   }
 
@@ -106,6 +114,7 @@ export function validatePagBankPixResponse(payload, { order, payment }) {
     ? payload.charges.find((entry) => entry?.reference_id === payment.id)
     : null;
   if (!charge || !PAGBANK_CHARGE_PATTERN.test(charge.id || '')) throw new Error('INVALID_PAGBANK_RESPONSE');
+  if (expectedExternalPaymentId && charge.id !== expectedExternalPaymentId) throw new Error('INVALID_PAGBANK_RESPONSE');
   if (charge.metadata?.ps_order_id !== payload.id) throw new Error('INVALID_PAGBANK_RESPONSE');
   if (charge.amount?.value !== order.total_cents || charge.amount?.currency !== 'BRL') {
     throw new Error('INVALID_PAGBANK_RESPONSE');
@@ -167,8 +176,9 @@ function publicError(error) {
   if (['INVALID_BODY', 'INVALID_ORDER_ID', 'INVALID_CUSTOMER', 'INVALID_CUSTOMER_NAME', 'INVALID_CUSTOMER_EMAIL', 'INVALID_CUSTOMER_TAX_ID', 'INVALID_CUSTOMER_PHONE'].includes(code)) {
     return { status: 400, code };
   }
-  if (code === 'ORDER_NOT_FOUND') return { status: 404, code };
-  if (code === 'ORDER_NOT_PENDING_PAYMENT' || code === 'PIX_ALREADY_CREATED') return { status: 409, code };
+  if (code === 'ORDER_NOT_FOUND' || code === 'PAYMENT_NOT_FOUND') return { status: 404, code: 'ORDER_NOT_FOUND' };
+  if (code === 'ORDER_NOT_PENDING_PAYMENT') return { status: 409, code };
+  if (code === 'PIX_CREATION_UNCERTAIN') return { status: 409, code };
   if (code === 'ORDER_CURRENCY_NOT_SUPPORTED') return { status: 422, code };
   if (['AUTH_NOT_CONFIGURED', 'PAYMENT_NOT_CONFIGURED'].includes(code)) return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
   return { status: 500, code: 'PIX_CREATE_UNAVAILABLE' };
@@ -183,7 +193,7 @@ async function loadPaymentContext(client, orderId, paymentId, userId) {
       .maybeSingle(),
     client
       .from('payments')
-      .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, currency, external_order_id, external_payment_id')
+      .select('id, order_id, provider, provider_environment, payment_method, provider_request_state, provider_request_started_at, status, amount_cents, currency, external_order_id, external_payment_id')
       .eq('id', paymentId)
       .maybeSingle()
   ]);
@@ -195,10 +205,10 @@ async function loadPaymentContext(client, orderId, paymentId, userId) {
   if (!Array.isArray(order.order_items) || order.order_items.length === 0) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== order.id || payment.provider !== 'pagbank'
     || payment.provider_environment !== 'sandbox' || payment.payment_method !== 'pix'
-    || payment.amount_cents !== order.total_cents || payment.currency !== order.currency) {
+    || payment.status !== 'pending' || payment.amount_cents !== order.total_cents
+    || payment.currency !== order.currency) {
     throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   }
-  if (payment.external_order_id || payment.external_payment_id) throw new Error('PIX_ALREADY_CREATED');
 
   return { order, payment };
 }
@@ -208,8 +218,125 @@ async function updatePayment(client, paymentId, values) {
   if (error) throw new Error('PAYMENT_PERSISTENCE_UNAVAILABLE');
 }
 
+async function markUncertain(client, paymentId) {
+  try {
+    await updatePayment(client, paymentId, { provider_request_state: 'uncertain' });
+  } catch {
+    // Remaining in submitting is intentionally fail-safe and blocks a second POST.
+  }
+}
+
 function definitiveClientFailure(status) {
   return status === 400 || status === 404 || status === 422;
+}
+
+async function callPagBank(fetchImpl, env, { method, externalOrderId, body }) {
+  const suffix = externalOrderId ? `/orders/${encodeURIComponent(externalOrderId)}` : '/orders';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
+  try {
+    return await fetchImpl(`${PAGBANK_SANDBOX_URL}${suffix}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {})
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sendPix(response, httpStatus, paymentId, result) {
+  return sendJson(response, httpStatus, {
+    paymentId,
+    status: 'pending',
+    pix: {
+      copyPaste: result.qrCode,
+      qrCodeUrl: result.qrCodeUrl,
+      expiresAt: result.expiresAt
+    },
+    environment: 'sandbox'
+  });
+}
+
+function sendProviderResult(response, payment, result, httpStatus) {
+  if (result.providerStatus === 'DECLINED') {
+    return sendJson(response, 422, { error: 'PAGBANK_DECLINED' });
+  }
+  if (result.providerStatus === 'PAID') {
+    return sendJson(response, 409, { error: 'PAYMENT_STATUS_REVIEW_REQUIRED' });
+  }
+  return sendPix(response, httpStatus, payment.id, result);
+}
+
+async function recoverCreatedPix({ response, backend, fetchImpl, env, order, payment }) {
+  if (!PAGBANK_ORDER_PATTERN.test(payment.external_order_id || '')
+    || !PAGBANK_CHARGE_PATTERN.test(payment.external_payment_id || '')) {
+    throw new Error('PIX_CREATION_UNCERTAIN');
+  }
+
+  let pagBankResponse;
+  try {
+    pagBankResponse = await callPagBank(fetchImpl, env, {
+      method: 'GET',
+      externalOrderId: payment.external_order_id
+    });
+  } catch {
+    return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+  }
+  if (!pagBankResponse.ok || pagBankResponse.status !== 200) {
+    return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+  }
+
+  let body;
+  try {
+    body = await pagBankResponse.json();
+  } catch {
+    return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+  }
+
+  let result;
+  try {
+    result = validatePagBankPixResponse(body, {
+      order,
+      payment,
+      expectedExternalOrderId: payment.external_order_id,
+      expectedExternalPaymentId: payment.external_payment_id
+    });
+  } catch {
+    return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+  }
+
+  if (result.providerStatus === 'DECLINED') {
+    try {
+      await updatePayment(backend, payment.id, {
+        status: 'failed',
+        provider_request_state: 'failed'
+      });
+    } catch {
+      return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+    }
+  }
+
+  return sendProviderResult(response, payment, result, 200);
+}
+
+async function handleExistingState(context) {
+  const { payment } = context;
+  if (payment.provider_request_state === 'created') return 'created';
+  if (payment.provider_request_state === 'submitting' || payment.provider_request_state === 'uncertain') {
+    throw new Error('PIX_CREATION_UNCERTAIN');
+  }
+  if (payment.provider_request_state !== 'prepared'
+    || payment.external_order_id !== null
+    || payment.external_payment_id !== null) {
+    throw new Error('PIX_CREATION_UNCERTAIN');
+  }
+  return 'prepared';
 }
 
 export function createPagBankPixHandler({
@@ -250,68 +377,76 @@ export function createPagBankPixHandler({
       if (prepareError) throw new Error(prepareError.message);
       if (!UUID_PATTERN.test(paymentId || '')) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
 
-      const { order, payment } = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id);
-      const pagBankPayload = buildPagBankPixPayload({ order, payment, customer: input.customer, now: now() });
-
-      let pagBankResponse;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
-      try {
-        pagBankResponse = await fetchImpl(`${PAGBANK_SANDBOX_URL}/orders`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
-            Accept: 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(pagBankPayload),
-          signal: controller.signal
-        });
-      } catch {
-        return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
-      } finally {
-        clearTimeout(timeout);
+      let context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id);
+      if (await handleExistingState(context) === 'created') {
+        return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
       }
 
-      if (!pagBankResponse.ok) {
+      const { data: claimed, error: claimError } = await backend.rpc('claim_pagbank_pix_submission', {
+        p_payment_id: paymentId,
+        p_order_id: input.orderId,
+        p_user_id: userData.user.id
+      });
+      if (claimError) throw new Error(claimError.message);
+      if (claimed !== true) {
+        context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id);
+        if (await handleExistingState(context) === 'created') {
+          return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
+        }
+        throw new Error('PIX_CREATION_UNCERTAIN');
+      }
+
+      const { order, payment } = context;
+      const pagBankPayload = buildPagBankPixPayload({ order, payment, customer: input.customer, now: now() });
+      let pagBankResponse;
+      try {
+        pagBankResponse = await callPagBank(fetchImpl, env, { method: 'POST', body: pagBankPayload });
+      } catch {
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
+      }
+
+      if (!pagBankResponse.ok || pagBankResponse.status !== 201) {
         if (definitiveClientFailure(pagBankResponse.status)) {
-          await updatePayment(backend, payment.id, { status: 'failed' });
+          await updatePayment(backend, payment.id, {
+            status: 'failed',
+            provider_request_state: 'failed'
+          });
           return sendJson(response, 422, { error: 'PAGBANK_REJECTED' });
         }
-        return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
 
       let pagBankBody;
       try {
         pagBankBody = await pagBankResponse.json();
       } catch {
-        return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
 
-      const result = validatePagBankPixResponse(pagBankBody, { order, payment });
-      await updatePayment(backend, payment.id, {
-        external_order_id: result.externalOrderId,
-        external_payment_id: result.externalPaymentId,
-        status: result.status
-      });
-
-      if (result.providerStatus === 'DECLINED') {
-        return sendJson(response, 422, { error: 'PAGBANK_DECLINED' });
-      }
-      if (result.providerStatus === 'PAID') {
-        return sendJson(response, 409, { error: 'PAYMENT_STATUS_REVIEW_REQUIRED' });
+      let result;
+      try {
+        result = validatePagBankPixResponse(pagBankBody, { order, payment });
+      } catch {
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
 
-      return sendJson(response, 201, {
-        paymentId: payment.id,
-        status: 'pending',
-        pix: {
-          copyPaste: result.qrCode,
-          qrCodeUrl: result.qrCodeUrl,
-          expiresAt: result.expiresAt
-        },
-        environment: 'sandbox'
-      });
+      try {
+        await updatePayment(backend, payment.id, {
+          external_order_id: result.externalOrderId,
+          external_payment_id: result.externalPaymentId,
+          status: result.status,
+          provider_request_state: result.providerStatus === 'DECLINED' ? 'failed' : 'created'
+        });
+      } catch {
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
+      }
+
+      return sendProviderResult(response, payment, result, 201);
     } catch (error) {
       const result = publicError(error);
       return sendJson(response, result.status, { error: result.code });

@@ -89,8 +89,11 @@ export function CheckoutPage() {
     try {
       const result = await createPagBankPix({ orderId: state.order.id, customer });
       setPixState({ loading: false, error: '', result, copied: false });
-    } catch {
-      setPixState({ loading: false, error: 'Não foi possível gerar o Pix de teste. Confira os dados e tente novamente.', result: null, copied: false });
+    } catch (error) {
+      const message = error?.code === 'PIX_CREATION_UNCERTAIN'
+        ? 'Não foi possível confirmar a criação do Pix. Aguarde antes de tentar novamente.'
+        : 'Não foi possível gerar o Pix de teste. Confira os dados e tente novamente.';
+      setPixState({ loading: false, error: message, result: null, copied: false });
     }
   }
 
@@ -128,7 +131,7 @@ export function CheckoutPage() {
       {pending && pagBankSandboxEnabled && (
         <section className="checkout-notice checkout-pix" aria-live="polite">
           <h2>Pagamento via Pix — Ambiente de teste</h2>
-          <p>Os dados abaixo serão usados somente para criar a cobrança Pix no Sandbox do PagBank.</p>
+          <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank e não é armazenado pela Resodi nesta etapa.</p>
           {!pixState.result ? (
             <form className="checkout-pix-form" onSubmit={handleCreatePix}>
               <label className="form-field">
