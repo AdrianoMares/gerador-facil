@@ -45,6 +45,7 @@ export function CheckoutPage() {
   const { orderId } = useParams();
   const [state, setState] = useState({ loading: true, order: null, entitlements: [] });
   const [downloadMessage, setDownloadMessage] = useState('');
+  const [downloading, setDownloading] = useState(false);
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', taxId: '' });
   const [pixState, setPixState] = useState({ loading: false, error: '', result: null, copied: false });
   const [paymentCheck, setPaymentCheck] = useState({ checking: false, timedOut: false, error: '' });
@@ -107,11 +108,15 @@ export function CheckoutPage() {
     && state.entitlements.some((entitlement) => entitlement.resource_id === resourceId);
 
   async function handleDownload() {
+    if (downloading) return;
     setDownloadMessage('');
+    setDownloading(true);
     try {
       await downloadFinalDocument(resourceId);
     } catch {
       setDownloadMessage('Seu documento ainda não está disponível para download.');
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -245,7 +250,9 @@ export function CheckoutPage() {
         <section className="checkout-notice" aria-live="polite">
           <h2>Documento disponível</h2>
           <p>Seu pagamento foi confirmado. O download será autorizado novamente no servidor.</p>
-          <button className="button" type="button" onClick={handleDownload}>Baixar PDF</button>
+          <button className="button" type="button" onClick={handleDownload} disabled={downloading} aria-busy={downloading}>
+            {downloading ? 'Gerando PDF...' : 'Baixar PDF'}
+          </button>
           {downloadMessage && <p role="status">{downloadMessage}</p>}
         </section>
       )}
