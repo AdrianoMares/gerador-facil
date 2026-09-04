@@ -6,6 +6,8 @@ import { downloadFinalDocument } from '../../services/commerce';
 import { checkPagBankPixStatus, createPagBankPix, pollPagBankPixStatus } from '../../services/payments';
 
 const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
+const successNoticeStyle = { borderColor: '#b9dfcf', background: '#edf7f2' };
+const successHeadingStyle = { color: '#247f59' };
 
 const statusLabels = {
   pending_payment: 'Aguardando pagamento',
@@ -241,14 +243,14 @@ export function CheckoutPage() {
         </section>
       )}
       {state.order.status === 'paid' && (
-        <section className="checkout-notice" aria-live="polite">
-          <h2>Pagamento confirmado</h2>
+        <section className="checkout-notice" style={successNoticeStyle} aria-live="polite">
+          <h2 style={successHeadingStyle}>Pagamento confirmado</h2>
           <p>O PagBank confirmou o pagamento deste pedido.</p>
         </section>
       )}
       {canDownload && (
-        <section className="checkout-notice" aria-live="polite">
-          <h2>Documento disponível</h2>
+        <section className="checkout-notice" style={successNoticeStyle} aria-live="polite">
+          <h2 style={successHeadingStyle}>Documento disponível</h2>
           <p>Seu pagamento foi confirmado. O download será autorizado novamente no servidor.</p>
           <button className="button" type="button" onClick={handleDownload} disabled={downloading} aria-busy={downloading}>
             {downloading ? 'Gerando PDF...' : 'Baixar PDF'}
