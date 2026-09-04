@@ -75,7 +75,8 @@ function backendFixture({
   storedExternalOrderId = null,
   storedExternalPaymentId = null,
   prepareError = null,
-  failUpdates = 0
+  failUpdates = 0,
+  recordError = null
 } = {}) {
   const calls = { clientKeys: [], rpc: [], claimResults: [], updates: [], fetch: [] };
   let remainingUpdateFailures = failUpdates;
@@ -117,6 +118,20 @@ function backendFixture({
         calls.rpc.push({ name, params });
         if (name === 'prepare_pagbank_pix_payment') {
           return prepareError ? { data: null, error: { message: prepareError } } : { data: paymentId, error: null };
+        }
+        if (name === 'record_pagbank_pix_creation') {
+          if (recordError) return { data: null, error: { message: recordError } };
+          if ((payment.external_order_id && payment.external_order_id !== params.p_external_order_id)
+            || (payment.external_payment_id && payment.external_payment_id !== params.p_external_payment_id)) {
+            return { data: null, error: { message: 'EXTERNAL_PAYMENT_ID_MISMATCH' } };
+          }
+          payment.external_order_id = params.p_external_order_id;
+          payment.external_payment_id = params.p_external_payment_id;
+          if (!['paid', 'refunded'].includes(payment.status)) {
+            payment.status = params.p_provider_status === 'DECLINED' ? 'failed' : payment.status;
+            payment.provider_request_state = params.p_provider_status === 'DECLINED' ? 'failed' : 'created';
+          }
+          return { data: paymentId, error: null };
         }
         assert.equal(name, 'claim_pagbank_pix_submission');
         const claimed = payment.provider_request_state === 'prepared'
@@ -331,6 +346,7 @@ test('sucesso persiste estado created e IDs externos', async () => {
   assert.equal(fixture.payment.external_payment_id, externalPaymentId);
   assert.equal(fixture.payment.status, 'pending');
   assert.equal(fixture.calls.fetch[0].options.method, 'POST');
+  assert.equal(fixture.calls.rpc.some((call) => call.name === 'record_pagbank_pix_creation'), true);
   assert.equal('x-idempotency-key' in fixture.calls.fetch[0].options.headers, false);
   assert.equal(JSON.stringify(fixture.calls.rpc[0].params).includes('52998224725'), false);
 });
@@ -367,7 +383,7 @@ test('falhas 5xx, JSON inválido e resposta inválida ficam uncertain', async ()
 });
 
 test('falha ao persistir IDs tenta marcar a submissão uncertain', async () => {
-  const fixture = backendFixture({ failUpdates: 1 });
+  const fixture = backendFixture({ recordError: 'database unavailable' });
   const result = await invoke(createPagBankPixHandler({
     createClientImpl: fixture.createClientImpl,
     env,
@@ -375,7 +391,23 @@ test('falha ao persistir IDs tenta marcar a submissão uncertain', async () => {
   }), { authorization: 'Bearer valid-token' });
   assert.equal(result.status, 502);
   assert.equal(fixture.payment.provider_request_state, 'uncertain');
-  assert.equal(fixture.calls.updates.length, 2);
+  assert.equal(fixture.calls.updates.length, 1);
+});
+
+test('retorno tardio do POST não regride payment/order já confirmados pelo webhook', async () => {
+  const fixture = backendFixture();
+  const fetchImpl = async (url, options) => {
+    fixture.calls.fetch.push({ url, options });
+    fixture.payment.status = 'paid';
+    fixture.order.status = 'paid';
+    return { ok: true, status: 201, async json() { return pagBankResponse(); } };
+  };
+  const result = await invoke(createPagBankPixHandler({ createClientImpl: fixture.createClientImpl, env, fetchImpl }), {
+    authorization: 'Bearer valid-token'
+  });
+  assert.equal(result.status, 201);
+  assert.equal(fixture.payment.status, 'paid');
+  assert.equal(fixture.order.status, 'paid');
 });
 
 test('payment created recupera o mesmo Pix por GET usando ID armazenado', async () => {
@@ -396,6 +428,23 @@ test('payment created recupera o mesmo Pix por GET usando ID armazenado', async 
   assert.equal(fixture.calls.fetch[0].options.method, 'GET');
   assert.equal(fixture.calls.fetch[0].url, `https://sandbox.api.pagseguro.com/orders/${externalOrderId}`);
   assert.equal(fixture.calls.fetch[0].options.body, undefined);
+  assert.equal(fixture.calls.claimResults.length, 0);
+});
+
+test('submitting com IDs adotados pelo webhook recupera por GET sem novo POST', async () => {
+  const fixture = backendFixture({
+    providerRequestState: 'submitting',
+    storedExternalOrderId: externalOrderId,
+    storedExternalPaymentId: externalPaymentId
+  });
+  const result = await invoke(createPagBankPixHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: successfulFetch(fixture.calls)
+  }), { authorization: 'Bearer valid-token' });
+  assert.equal(result.status, 200);
+  assert.equal(fixture.calls.fetch.length, 1);
+  assert.equal(fixture.calls.fetch[0].options.method, 'GET');
   assert.equal(fixture.calls.claimResults.length, 0);
 });
 

@@ -51,7 +51,11 @@ function officialOrder(status = 'WAITING') {
       id: externalPaymentId,
       reference_id: paymentId,
       status,
-      amount: { value: 4900, currency: 'BRL' },
+      amount: {
+        value: 4900,
+        currency: 'BRL',
+        summary: { total: 4900, paid: status === 'PAID' ? 4900 : 0, refunded: 0 }
+      },
       payment_method: { type: 'PIX' }
     }]
   };
@@ -90,7 +94,9 @@ function backendFixture({ ownerId = 'user-id', fulfillmentError = null } = {}) {
         }
         const requestedOrder = filters.find(([field]) => field === 'order_id')?.[1];
         const requestedExternal = filters.find(([field]) => field === 'external_order_id')?.[1];
-        const matches = (!requestedOrder || requestedOrder === storedPayment.order_id)
+        const requestedId = filters.find(([field]) => field === 'id')?.[1];
+        const matches = (!requestedId || requestedId === storedPayment.id)
+          && (!requestedOrder || requestedOrder === storedPayment.order_id)
           && (!requestedExternal || requestedExternal === storedPayment.external_order_id);
         return { data: matches ? storedPayment : null, error: null };
       }
@@ -102,9 +108,20 @@ function backendFixture({ ownerId = 'user-id', fulfillmentError = null } = {}) {
     from: query,
     async rpc(name, params) {
       calls.rpc.push({ name, params });
+      if (name === 'adopt_verified_pagbank_payment_ids') {
+        if ((storedPayment.external_order_id && storedPayment.external_order_id !== params.p_external_order_id)
+          || (storedPayment.external_payment_id && storedPayment.external_payment_id !== params.p_external_payment_id)) {
+          return { data: null, error: { message: 'EXTERNAL_PAYMENT_ID_MISMATCH' } };
+        }
+        storedPayment.external_order_id = params.p_external_order_id;
+        storedPayment.external_payment_id = params.p_external_payment_id;
+        return { data: paymentId, error: null };
+      }
       if (name === 'confirm_verified_pagbank_payment') return { data: orderId, error: null };
       if (name === 'fulfill_paid_order') return { data: null, error: fulfillmentError };
       if (name === 'record_verified_pagbank_status') return { data: params.p_provider_status, error: null };
+      if (name === 'record_verified_pagbank_partial_refund') return { data: orderId, error: null };
+      if (name === 'refund_verified_pagbank_payment') return { data: orderId, error: null };
       throw new Error(`Unexpected RPC ${name}`);
     }
   };
@@ -186,15 +203,69 @@ test('DECLINED registra falha sem marcar order como paid', async () => {
   assert.deepEqual(fixture.calls.rpc.map((call) => call.name), ['record_verified_pagbank_status']);
 });
 
-test('refund não implementado falha conservadoramente sem qualquer mutação', async () => {
+test('estrutura de refund ausente, nula, inválida ou maior que o total falha sem mutação', async () => {
+  const mutations = [
+    (body) => { delete body.charges[0].amount.summary; },
+    (body) => { body.charges[0].amount.summary.refunded = null; },
+    (body) => { body.charges[0].amount.summary.refunded = 1.5; },
+    (body) => { body.charges[0].amount.summary.refunded = -1; },
+    (body) => { body.charges[0].amount.summary.refunded = 4901; },
+    (body) => { body.charges[0].amount.summary.total = 4800; }
+  ];
+  for (const mutate of mutations) {
+    const fixture = backendFixture();
+    await assert.rejects(reconcilePagBankPayment({
+      backend: fixture.backend,
+      payment,
+      env,
+      fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', mutate)
+    }), /PAGBANK_VERIFICATION_MISMATCH/);
+    assert.deepEqual(fixture.calls.rpc, []);
+  }
+});
+
+test('refund parcial preserva payment/order pagos e não executa fulfillment', async () => {
   const fixture = backendFixture();
-  await assert.rejects(reconcilePagBankPayment({
+  const paidPayment = { ...payment, status: 'paid', order: { ...order, status: 'paid' } };
+  const result = await reconcilePagBankPayment({
     backend: fixture.backend,
-    payment,
+    payment: paidPayment,
     env,
-    fetchImpl: providerFetch(fixture.calls.fetch, 'REFUNDED')
-  }), /PAGBANK_VERIFICATION_MISMATCH/);
-  assert.deepEqual(fixture.calls.rpc, []);
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', (body) => {
+      body.charges[0].amount.summary.refunded = 1200;
+    })
+  });
+  assert.deepEqual(result, {
+    orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted: false
+  });
+  assert.deepEqual(fixture.calls.rpc, [{
+    name: 'record_verified_pagbank_partial_refund',
+    params: { p_payment_id: paymentId, p_refunded_amount_cents: 1200, p_provider_status: 'PAID' }
+  }]);
+});
+
+test('refund integral usa summary.refunded, é repetível e não executa fulfillment', async () => {
+  const fixture = backendFixture();
+  const refundedPayment = { ...payment, status: 'paid', order: { ...order, status: 'paid' } };
+  const options = {
+    backend: fixture.backend,
+    payment: refundedPayment,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'CANCELED', (body) => {
+      body.charges[0].amount.summary.paid = 4900;
+      body.charges[0].amount.summary.refunded = 4900;
+    })
+  };
+  const first = await reconcilePagBankPayment(options);
+  const second = await reconcilePagBankPayment({
+    ...options,
+    payment: { ...refundedPayment, status: 'refunded', order: { ...order, status: 'refunded' } }
+  });
+  assert.equal(first.orderStatus, 'refunded');
+  assert.equal(second.paymentStatus, 'refunded');
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
+    'refund_verified_pagbank_payment', 'refund_verified_pagbank_payment'
+  ]);
 });
 
 test('PAID confirma financeiramente antes do fulfillment', async () => {
@@ -282,6 +353,33 @@ test('status reconcilia Pix existente por GET com IDs exclusivamente do banco', 
   assert.equal(fixture.calls.fetch[0].options.method, 'GET');
 });
 
+test('status sem IDs externos falha fechado e nunca aceita IDs do browser', async () => {
+  const fixture = backendFixture();
+  fixture.storedPayment.external_order_id = null;
+  fixture.storedPayment.external_payment_id = null;
+  const result = await invoke(createPagBankPixStatusHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID')
+  }), { authorization: 'Bearer valid-token' });
+  assert.equal(result.status, 409);
+  assert.deepEqual(fixture.calls.fetch, []);
+  assert.deepEqual(fixture.calls.rpc, []);
+});
+
+test('payment/order pagos não regridem após status não terminal do provider', async () => {
+  const fixture = backendFixture();
+  const result = await reconcilePagBankPayment({
+    backend: fixture.backend,
+    payment: { ...payment, status: 'paid', order: { ...order, status: 'paid' } },
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'WAITING')
+  });
+  assert.equal(result.orderStatus, 'paid');
+  assert.equal(result.paymentStatus, 'paid');
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), ['record_verified_pagbank_status']);
+});
+
 test('assinatura do webhook usa bytes crus e comparação segura', () => {
   const raw = Buffer.from('{\n  "id": "value"\n}\n');
   const signature = createHash('sha256').update(`${env.PAGBANK_TOKEN}-`).update(raw).digest('hex');
@@ -300,7 +398,24 @@ test('webhook rejeita assinatura ausente ou inválida sem tocar no banco', async
   assert.deepEqual(fixture.calls.fetch, []);
 });
 
-test('webhook antes da persistência dos IDs externos é ignorado sem consultar PagBank', async () => {
+test('webhook assinado com referências inválidas não consulta nem muta', async () => {
+  const fixture = backendFixture();
+  const body = officialOrder('PAID');
+  body.charges[0].reference_id = 'not-a-uuid';
+  const rawBody = Buffer.from(JSON.stringify(body));
+  const signature = createHash('sha256').update(`${env.PAGBANK_TOKEN}-`).update(rawBody).digest('hex');
+  const result = await invoke(createPagBankWebhookHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID')
+  }), { rawBody, signature });
+  assert.equal(result.status, 202);
+  assert.deepEqual(fixture.calls.clientKeys, []);
+  assert.deepEqual(fixture.calls.fetch, []);
+  assert.deepEqual(fixture.calls.rpc, []);
+});
+
+test('webhook antes dos IDs localiza pelas referências, valida GET e adota antes de confirmar', async () => {
   const fixture = backendFixture();
   fixture.storedPayment.external_order_id = null;
   fixture.storedPayment.external_payment_id = null;
@@ -311,9 +426,63 @@ test('webhook antes da persistência dos IDs externos é ignorado sem consultar 
     env,
     fetchImpl: providerFetch(fixture.calls.fetch, 'PAID')
   }), { rawBody, signature });
+  assert.equal(result.status, 200);
+  assert.equal(fixture.calls.fetch.length, 1);
+  assert.deepEqual(fixture.calls.rpc.map((call) => call.name), [
+    'adopt_verified_pagbank_payment_ids', 'confirm_verified_pagbank_payment', 'fulfill_paid_order'
+  ]);
+  assert.equal(fixture.storedPayment.external_order_id, externalOrderId);
+  assert.equal(fixture.storedPayment.external_payment_id, externalPaymentId);
+});
+
+test('webhook antes dos IDs com GET divergente não adota, confirma nem cumpre', async () => {
+  const fixture = backendFixture();
+  fixture.storedPayment.external_order_id = null;
+  fixture.storedPayment.external_payment_id = null;
+  const rawBody = Buffer.from(JSON.stringify(officialOrder('PAID')));
+  const signature = createHash('sha256').update(`${env.PAGBANK_TOKEN}-`).update(rawBody).digest('hex');
+  const result = await invoke(createPagBankWebhookHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID', (body) => {
+      body.charges[0].reference_id = '0f25c47d-90f3-44cc-bb63-ab9156a9fc72';
+    })
+  }), { rawBody, signature });
+  assert.equal(result.status, 502);
+  assert.deepEqual(fixture.calls.rpc, []);
+  assert.equal(fixture.storedPayment.external_order_id, null);
+  assert.equal(fixture.storedPayment.external_payment_id, null);
+});
+
+test('ID externo local diferente falha antes do GET e nunca é sobrescrito', async () => {
+  const fixture = backendFixture();
+  fixture.storedPayment.external_order_id = 'ORDE_AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA';
+  const rawBody = Buffer.from(JSON.stringify(officialOrder('PAID')));
+  const signature = createHash('sha256').update(`${env.PAGBANK_TOKEN}-`).update(rawBody).digest('hex');
+  const result = await invoke(createPagBankWebhookHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: providerFetch(fixture.calls.fetch, 'PAID')
+  }), { rawBody, signature });
   assert.equal(result.status, 202);
   assert.deepEqual(fixture.calls.fetch, []);
   assert.deepEqual(fixture.calls.rpc, []);
+  assert.equal(fixture.storedPayment.external_order_id, 'ORDE_AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA');
+});
+
+test('adoção repetida e concorrente mantém um único vínculo correto', async () => {
+  const fixture = backendFixture();
+  fixture.storedPayment.external_order_id = null;
+  fixture.storedPayment.external_payment_id = null;
+  const pendingPayment = { ...payment, external_order_id: null, external_payment_id: null };
+  const identifiers = { externalOrderId, externalPaymentId };
+  await Promise.all([
+    reconcilePagBankPayment({ backend: fixture.backend, payment: pendingPayment, providerIdentifiers: identifiers, env, fetchImpl: providerFetch(fixture.calls.fetch, 'WAITING') }),
+    reconcilePagBankPayment({ backend: fixture.backend, payment: pendingPayment, providerIdentifiers: identifiers, env, fetchImpl: providerFetch(fixture.calls.fetch, 'WAITING') })
+  ]);
+  assert.equal(fixture.storedPayment.external_order_id, externalOrderId);
+  assert.equal(fixture.storedPayment.external_payment_id, externalPaymentId);
+  assert.equal(fixture.calls.rpc.filter((call) => call.name === 'adopt_verified_pagbank_payment_ids').length, 2);
 });
 
 test('webhook válido é só sinal: localiza conhecido e ainda consulta GET oficial', async () => {
@@ -420,7 +589,26 @@ test('migration separa finanças, fulfillment genérico e idempotência backend-
   assert.doesNotMatch(migration, /p\.active/);
   assert.match(migration, /on conflict \(order_id, product_id, resource_type, resource_id\)[\s\S]*do nothing/);
   assert.match(migration, /perform \* from public\.fulfill_paid_service_order/);
-  for (const fn of ['confirm_verified_pagbank_payment\\(uuid\\)', 'record_verified_pagbank_status\\(uuid, text\\)', 'fulfill_paid_order\\(uuid\\)']) {
+  assert.match(migration, /create function public\.adopt_verified_pagbank_payment_ids/);
+  assert.match(migration, /create function public\.record_pagbank_pix_creation/);
+  assert.match(migration, /when status in \('paid', 'refunded'\) then status/);
+  assert.match(migration, /external_order_id = coalesce\(external_order_id, p_external_order_id\)/);
+  assert.match(migration, /EXTERNAL_PAYMENT_ID_MISMATCH/);
+  assert.match(migration, /create function public\.record_verified_pagbank_partial_refund/);
+  assert.match(migration, /create function public\.refund_verified_pagbank_payment/);
+  assert.match(migration, /p_refunded_amount_cents <> v_payment\.amount_cents/);
+  assert.match(migration, /set revoked_at = coalesce\(e\.revoked_at, statement_timestamp\(\)\)/);
+  assert.match(migration, /p\.fulfillment_mode = 'document_download'/);
+  assert.doesNotMatch(migration, /(?:delete|update)\s+public\.service_requests/i);
+  for (const fn of [
+    'adopt_verified_pagbank_payment_ids\\(uuid, uuid, text, text\\)',
+    'record_pagbank_pix_creation\\(uuid, uuid, text, text, text\\)',
+    'confirm_verified_pagbank_payment\\(uuid\\)',
+    'record_verified_pagbank_status\\(uuid, text\\)',
+    'record_verified_pagbank_partial_refund\\(uuid, integer, text\\)',
+    'refund_verified_pagbank_payment\\(uuid, integer, text\\)',
+    'fulfill_paid_order\\(uuid\\)'
+  ]) {
     assert.match(migration, new RegExp(`revoke all on function public\\.${fn}\\s+from public, anon, authenticated`));
     assert.match(migration, new RegExp(`grant execute on function public\\.${fn}\\s+to service_role`));
   }

@@ -337,7 +337,9 @@ async function recoverCreatedPix({ response, backend, fetchImpl, env, order, pay
 
 async function handleExistingState(context) {
   const { payment } = context;
-  if (payment.provider_request_state === 'created') return 'created';
+  const hasExternalIds = PAGBANK_ORDER_PATTERN.test(payment.external_order_id || '')
+    && PAGBANK_CHARGE_PATTERN.test(payment.external_payment_id || '');
+  if (hasExternalIds) return 'created';
   if (payment.provider_request_state === 'submitting' || payment.provider_request_state === 'uncertain') {
     throw new Error('PIX_CREATION_UNCERTAIN');
   }
@@ -453,12 +455,19 @@ export function createPagBankPixHandler({
       }
 
       try {
-        await updatePayment(backend, payment.id, {
-          external_order_id: result.externalOrderId,
-          external_payment_id: result.externalPaymentId,
-          status: result.status,
-          provider_request_state: result.providerStatus === 'DECLINED' ? 'failed' : 'created'
-        });
+        const { data: recordedPaymentId, error: recordError } = await backend.rpc(
+          'record_pagbank_pix_creation',
+          {
+            p_payment_id: payment.id,
+            p_order_id: order.id,
+            p_external_order_id: result.externalOrderId,
+            p_external_payment_id: result.externalPaymentId,
+            p_provider_status: result.providerStatus
+          }
+        );
+        if (recordError || recordedPaymentId !== payment.id) {
+          throw new Error('PAYMENT_PERSISTENCE_UNAVAILABLE');
+        }
       } catch {
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
