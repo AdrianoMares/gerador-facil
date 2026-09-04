@@ -136,9 +136,16 @@ async function adoptVerifiedIds(backend, payment, verification) {
 }
 
 async function fulfillPaidOrder({ backend, payment, orderId, logError }) {
-  const { error } = await backend.rpc('fulfill_paid_order', { p_order_id: orderId });
-  if (!error) return true;
-  logError('PagBank fulfillment failed', { paymentId: payment.id, orderId, code: 'FULFILLMENT_FAILED' });
+  const { error: toolError } = await backend.rpc('fulfill_paid_order', { p_order_id: orderId });
+  const { error: serviceError } = await backend.rpc('fulfill_paid_service_order', { p_order_id: orderId });
+  if (!toolError && !serviceError) return true;
+  logError('PagBank fulfillment failed', {
+    paymentId: payment.id,
+    orderId,
+    code: 'FULFILLMENT_FAILED',
+    toolFailed: Boolean(toolError),
+    serviceFailed: Boolean(serviceError)
+  });
   return false;
 }
 
