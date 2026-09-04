@@ -16,7 +16,8 @@ export function Footer() {
             <span>Plataforma</span>
             <Link to="/ferramentas">Ferramentas</Link>
             <Link to="/servicos">Serviços</Link>
-            <Link to="/precos">Preços</Link>
+            <Link to="/marketing-digital">Marketing Digital</Link>
+            <Link to="/ajuda">Ajuda</Link>
           </nav>
           <nav aria-label="Links legais">
             <span>Legal</span>
