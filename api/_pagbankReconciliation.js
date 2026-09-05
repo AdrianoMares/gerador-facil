@@ -10,9 +10,18 @@ function validOptionalId(value, pattern) {
 
 function validLocalContext(payment) {
   const order = payment?.order;
+  const buyerFee = payment?.buyer_fee_cents ?? 0;
+  const installments = payment?.installments ?? null;
+  const methodAmountsMatch = payment?.payment_method === 'pix'
+    ? buyerFee === 0 && installments === null && payment.amount_cents === order?.total_cents
+    : payment?.payment_method === 'credit_card'
+      && Number.isInteger(installments) && installments >= 1 && installments <= 5
+      && Number.isInteger(buyerFee) && buyerFee >= 0
+      && (installments === 1 ? buyerFee === 0 : buyerFee > 0)
+      && payment.amount_cents === order?.total_cents + buyerFee;
   return payment?.provider === 'pagbank'
     && payment.provider_environment === 'sandbox'
-    && payment.payment_method === 'pix'
+    && ['pix', 'credit_card'].includes(payment.payment_method)
     && validOptionalId(payment.external_order_id, PAGBANK_ORDER_PATTERN)
     && validOptionalId(payment.external_payment_id, PAGBANK_CHARGE_PATTERN)
     && order
@@ -22,7 +31,7 @@ function validLocalContext(payment) {
     && Number.isInteger(payment.refunded_amount_cents)
     && payment.refunded_amount_cents >= 0
     && payment.refunded_amount_cents <= payment.amount_cents
-    && payment.amount_cents === order.total_cents
+    && methodAmountsMatch
     && payment.currency === 'BRL'
     && order.currency === 'BRL';
 }
@@ -56,13 +65,27 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
   const originalAmount = charge?.amount?.value;
   const summary = charge?.amount?.summary;
   const refundedAmount = summary?.refunded;
+  const expectedProviderMethod = payment.payment_method === 'pix' ? 'PIX' : 'CREDIT_CARD';
+  const buyerFee = payment.buyer_fee_cents ?? 0;
+  const installments = payment.installments ?? null;
+  const providerBuyerInterest = charge?.amount?.fees?.buyer?.interest;
+  const cardDetailsValid = payment.payment_method === 'pix'
+    ? charge?.payment_method?.installments === undefined
+    : charge?.payment_method?.installments === installments
+      && (installments === 1
+        ? providerBuyerInterest?.total === undefined || providerBuyerInterest.total === 0
+        : providerBuyerInterest?.total === buyerFee
+          && Number.isInteger(providerBuyerInterest?.installments)
+          && providerBuyerInterest.installments >= 1
+          && providerBuyerInterest.installments <= installments);
 
   if (!charge
     || charge.reference_id !== payment.id
     || originalAmount !== payment.amount_cents
-    || originalAmount !== payment.order.total_cents
+    || originalAmount !== payment.order.total_cents + buyerFee
     || charge.amount?.currency !== 'BRL'
-    || charge.payment_method?.type !== 'PIX'
+    || charge.payment_method?.type !== expectedProviderMethod
+    || !cardDetailsValid
     || !PROVIDER_STATUSES.has(charge.status)
     || !summary || typeof summary !== 'object'
     || !Number.isInteger(summary.total) || summary.total !== originalAmount

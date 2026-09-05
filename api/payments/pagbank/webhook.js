@@ -75,11 +75,10 @@ function webhookIdentifiers(payload) {
 async function loadKnownPayment(backend, identifiers) {
   const { data: payment, error: paymentError } = await backend
     .from('payments')
-    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents')
+    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents')
     .eq('id', identifiers.paymentReference)
     .eq('provider', 'pagbank')
     .eq('provider_environment', 'sandbox')
-    .eq('payment_method', 'pix')
     .maybeSingle();
   if (paymentError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== identifiers.orderReference) return null;
@@ -93,7 +92,13 @@ async function loadKnownPayment(backend, identifiers) {
   if (!order
     || (payment.external_order_id && identifiers.externalOrderId !== payment.external_order_id)
     || (payment.external_payment_id && identifiers.externalPaymentId !== payment.external_payment_id)
-    || payment.amount_cents !== order.total_cents
+    || !['pix', 'credit_card'].includes(payment.payment_method)
+    || (payment.payment_method === 'pix' && (payment.amount_cents !== order.total_cents
+      || (payment.buyer_fee_cents ?? 0) !== 0 || (payment.installments ?? null) !== null))
+    || (payment.payment_method === 'credit_card' && (payment.amount_cents !== order.total_cents + payment.buyer_fee_cents
+      || !Number.isInteger(payment.installments) || payment.installments < 1 || payment.installments > 5
+      || !Number.isInteger(payment.buyer_fee_cents) || payment.buyer_fee_cents < 0
+      || (payment.installments === 1 ? payment.buyer_fee_cents !== 0 : payment.buyer_fee_cents <= 0)))
     || payment.currency !== order.currency
     || payment.currency !== 'BRL') return null;
   return { ...payment, order };
