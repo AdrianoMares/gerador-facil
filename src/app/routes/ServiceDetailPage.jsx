@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { findServiceBySlugs } from '../../catalog/servicesRegistry';
 import { Seo } from '../../components/Seo';
+import { ServicePurchase } from '../../components/ServicePurchase';
 import { siteIdentity } from '../../config/siteIdentity';
 import { NotFound } from './NotFound';
 
@@ -38,11 +39,13 @@ export function ServiceDetailPage() {
             <h1>{service.name} ({detail.technicalName})</h1>
             <p>{detail.intro}</p>
           </div>
-          <aside className="service-commercial-placeholder" aria-label="Disponibilidade do serviço">
-            <span>Disponibilidade</span>
-            <strong>Contratação em breve</strong>
-            <p>Esta página está sendo preparada para o lançamento do serviço.</p>
-          </aside>
+          {service.status === 'active' ? <ServicePurchase service={service} /> : (
+            <aside className="service-commercial-placeholder" aria-label="Disponibilidade do serviço">
+              <span>Disponibilidade</span>
+              <strong>Contratação em breve</strong>
+              <p>Esta página está sendo preparada para o lançamento do serviço.</p>
+            </aside>
+          )}
         </div>
       </section>
       <main className="container page-section service-detail-content">

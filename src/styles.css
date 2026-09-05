@@ -238,6 +238,19 @@ a {
 .service-commercial-placeholder strong { display: block; margin: 7px 0; font-size: 1.15rem; }
 .service-commercial-placeholder p { font-size: 0.9rem; }
 
+.service-purchase {
+  border: 1px solid rgb(142 211 179 / 42%);
+  border-radius: 14px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+.service-purchase > span { display: block; color: #247f59; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.service-purchase strong { display: block; margin: 7px 0; color: #0d2742; font-size: 1.15rem; }
+.service-purchase p { color: #496177; font-size: 0.9rem; }
+.service-purchase .button { width: 100%; margin-top: 8px; }
+.service-purchase-message { margin: 14px 0 0; color: #8b4a29 !important; font-weight: 600; }
+
 .service-detail-content { max-width: 920px; }
 .service-detail-section { margin-bottom: 52px; scroll-margin-top: 112px; }
 .service-detail-section > p:last-child { margin-bottom: 0; }
