@@ -10,6 +10,7 @@ import { NotFound } from './routes/NotFound';
 import { ReceiptPage } from '../tools/receipt/ReceiptPage';
 import { ResumePage } from '../tools/resume/ResumePage';
 import { CheckoutPage } from './routes/CheckoutPage';
+import { PublicOrderPage } from './routes/PublicOrderPage';
 import { LegalDocumentPage } from '../legal/LegalDocumentPage';
 import { legalDocumentsByPath } from '../legal/legalDocuments';
 
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { path: 'ferramentas/gerador-de-curriculo', element: <ResumePage /> },
       { path: 'precos', element: <Navigate to="/ajuda" replace /> },
       { path: 'checkout/:orderId', element: <CheckoutPage /> },
+      { path: 'pedido/:token', element: <PublicOrderPage /> },
       { path: 'termos-de-uso', element: <LegalDocumentPage document={legalDocumentsByPath['/termos-de-uso']} /> },
       { path: 'politica-de-privacidade', element: <LegalDocumentPage document={legalDocumentsByPath['/politica-de-privacidade']} /> },
       { path: '*', element: <NotFound /> }

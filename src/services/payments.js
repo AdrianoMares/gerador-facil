@@ -36,6 +36,20 @@ export async function createPagBankPix({ orderId, customer }, {
   return payload;
 }
 
+export async function createPagBankBoleto({ orderId, customer, address }, options = {}) {
+  const payload = await authenticatedRequest('/api/payments/pagbank/boleto/create', {
+    method: 'POST',
+    body: JSON.stringify({ orderId, customer, address })
+  }, options);
+  if (payload?.environment !== 'sandbox' || payload?.providerStatus !== 'WAITING'
+    || !payload?.boleto?.digitableLine || !payload?.boleto?.url || !payload?.publicUrl) {
+    const error = new Error('Não foi possível gerar o boleto.');
+    error.code = 'BOLETO_CREATE_UNAVAILABLE';
+    throw error;
+  }
+  return payload;
+}
+
 const PAGBANK_SDK_URL = 'https://assets.pagseguro.com.br/checkout-sdk-js/rc/dist/browser/pagseguro.min.js';
 
 async function authenticatedRequest(path, options = {}, { fetchImpl = fetch, getSession = getCommerceSession } = {}) {
@@ -195,6 +209,27 @@ export async function checkPagBankCardStatus(orderId, options = {}) {
   if (!payload?.orderStatus || !payload?.paymentStatus || !payload?.providerStatus) {
     const error = new Error('Não foi possível verificar o pagamento.');
     error.code = 'PAYMENT_STATUS_UNAVAILABLE';
+    throw error;
+  }
+  return payload;
+}
+
+export async function getPublicOrderStatus(token, { fetchImpl = fetch, signal } = {}) {
+  const response = await fetchImpl('/api/orders/public-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+    signal
+  });
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok || !payload?.serviceName || !payload?.currency || !payload?.status) {
+    const error = new Error('Não foi possível acessar este pedido.');
+    error.code = payload?.error || 'ORDER_STATUS_UNAVAILABLE';
     throw error;
   }
   return payload;

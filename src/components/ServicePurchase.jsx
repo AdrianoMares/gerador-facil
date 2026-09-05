@@ -40,7 +40,7 @@ export function ServicePurchase({ service }) {
     <aside className="service-purchase" aria-label="Contratação do serviço">
       <span>Contratação online</span>
       <strong>Pronto para contratar?</strong>
-      <p>Você seguirá para o checkout seguro, com Pix ou cartão de crédito.</p>
+      <p>Você seguirá para o checkout seguro, com Pix, cartão de crédito ou boleto.</p>
       <button className="button" type="button" onClick={handlePurchase} disabled={isStartingCheckout}>
         {isStartingCheckout ? 'Preparando...' : 'Contratar serviço'}
       </button>
