@@ -12,6 +12,44 @@ function integerCents(value) {
   return Number.isInteger(value) && value > 0;
 }
 
+function safePagBankFeeError(payload) {
+  if (!payload || typeof payload !== 'object') return [];
+  const candidates = Array.isArray(payload.error_messages)
+    ? payload.error_messages
+    : Array.isArray(payload.errors)
+      ? payload.errors
+      : [];
+  return candidates.slice(0, 5).map((entry) => ({
+    code: typeof entry?.code === 'string' ? entry.code : undefined,
+    description: typeof entry?.description === 'string' ? entry.description : undefined,
+    parameter: typeof entry?.parameter_name === 'string' ? entry.parameter_name : undefined
+  }));
+}
+
+function safePagBankFeeShape(payload) {
+  const brands = payload?.payment_methods?.credit_card;
+  if (!brands || typeof brands !== 'object' || Array.isArray(brands)) {
+    return { hasCreditCard: false };
+  }
+  return {
+    hasCreditCard: true,
+    brands: Object.entries(brands).map(([brand, entry]) => ({
+      brand,
+      plans: Array.isArray(entry?.installment_plans)
+        ? entry.installment_plans.slice(0, MAX_CARD_INSTALLMENTS).map((plan) => ({
+          installments: plan?.installments,
+          installmentValue: plan?.installment_value,
+          interestFree: plan?.interest_free,
+          totalAmount: plan?.amount?.value,
+          currency: plan?.amount?.currency,
+          buyerInterestTotal: plan?.amount?.fees?.buyer?.interest?.total,
+          buyerInterestInstallments: plan?.amount?.fees?.buyer?.interest?.installments
+        }))
+        : null
+    }))
+  };
+}
+
 export function validatePagBankFeePlans(payload, baseAmount) {
   if (!integerCents(baseAmount) || !payload || typeof payload !== 'object') {
     throw new Error('INVALID_PAGBANK_FEES_RESPONSE');
@@ -96,14 +134,26 @@ export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) 
       headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
       signal: controller.signal
     });
-    if (!response.ok || response.status !== 200) throw new Error('PAGBANK_FEES_UNAVAILABLE');
     let payload;
     try {
       payload = await response.json();
     } catch {
+      console.warn('PagBank Fees diagnostic', { status: response.status, parseError: true });
       throw new Error('PAGBANK_FEES_UNAVAILABLE');
     }
-    return validatePagBankFeePlans(payload, baseAmount);
+    if (!response.ok || response.status !== 200) {
+      console.warn('PagBank Fees diagnostic', {
+        status: response.status,
+        errors: safePagBankFeeError(payload)
+      });
+      throw new Error('PAGBANK_FEES_UNAVAILABLE');
+    }
+    try {
+      return validatePagBankFeePlans(payload, baseAmount);
+    } catch (error) {
+      console.warn('PagBank Fees validation diagnostic', safePagBankFeeShape(payload));
+      throw error;
+    }
   } finally {
     clearTimeout(timeout);
   }
