@@ -60,7 +60,7 @@ export const serviceCategories = [
         path: '/servicos/mei/declaracao-anual-mei',
         description: 'Auxílio para envio da Declaração Anual do MEI (DASN-SIMEI).',
         priceCents: 10000,
-        status: 'draft',
+        status: 'active',
         seo: {
           title: 'Declaração Anual do MEI (DASN-SIMEI) Online',
           description: 'Faça sua Declaração Anual do MEI (DASN-SIMEI) com atendimento online. A Resodi auxilia na preparação, envio e conclusão da declaração.'
