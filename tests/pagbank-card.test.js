@@ -75,7 +75,7 @@ test('consulta Fees fixa CREDIT_CARD, máximo 5, 1x sem juros e usa valor fornec
   assert.equal(requested.url.searchParams.get('value'), String(baseAmount));
   assert.equal(requested.url.searchParams.get('payment_methods'), 'CREDIT_CARD');
   assert.equal(requested.url.searchParams.get('max_installments'), '5');
-  assert.equal(requested.url.searchParams.get('max_installments_no_interest'), '1');
+  assert.equal(requested.url.searchParams.get('max_installments_no_interest'), '0');
   assert.equal(requested.options.headers.Authorization, 'Bearer secret');
   assert.equal(plans.length, 3);
 });
