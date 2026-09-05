@@ -34,36 +34,6 @@ export const marketingDigitalCategories = [
         }
       },
       {
-        name: 'Loja Virtual com até 20 Produtos',
-        shortName: 'E-commerce até 20 produtos',
-        slug: 'ecommerce-ate-20-produtos',
-        category: 'Criação de Sites',
-        categorySlug: 'criacao-de-sites',
-        path: '/marketing-digital/criacao-de-sites/ecommerce-ate-20-produtos',
-        description: 'Criação de loja virtual com estrutura inicial para até 20 produtos.',
-        priceCents: 100000,
-        status: 'planned',
-        seo: {
-          title: 'Criação de Loja Virtual até 20 Produtos | Resodi',
-          description: 'Criação de loja virtual com até 20 produtos.'
-        }
-      },
-      {
-        name: 'Loja Virtual com mais de 20 Produtos',
-        shortName: 'E-commerce acima de 20 produtos',
-        slug: 'ecommerce-mais-de-20-produtos',
-        category: 'Criação de Sites',
-        categorySlug: 'criacao-de-sites',
-        path: '/marketing-digital/criacao-de-sites/ecommerce-mais-de-20-produtos',
-        description: 'Criação de loja virtual para projetos com mais de 20 produtos.',
-        priceCents: 200000,
-        status: 'planned',
-        seo: {
-          title: 'Criação de Loja Virtual com mais de 20 Produtos | Resodi',
-          description: 'Criação de loja virtual para catálogos com mais de 20 produtos.'
-        }
-      },
-      {
         name: 'Site — Pacote Completo',
         shortName: 'Pacote Completo',
         slug: 'site-pacote-completo',
@@ -84,6 +54,36 @@ export const marketingDigitalCategories = [
     name: 'Loja Virtual',
     slug: 'loja-virtual',
     services: [
+      {
+        name: 'Loja Virtual com até 20 Produtos',
+        shortName: 'E-commerce até 20 produtos',
+        slug: 'ecommerce-ate-20-produtos',
+        category: 'Loja Virtual',
+        categorySlug: 'loja-virtual',
+        path: '/marketing-digital/loja-virtual/ecommerce-ate-20-produtos',
+        description: 'Criação de loja virtual com estrutura inicial para até 20 produtos.',
+        priceCents: 100000,
+        status: 'planned',
+        seo: {
+          title: 'Criação de Loja Virtual até 20 Produtos | Resodi',
+          description: 'Criação de loja virtual com até 20 produtos.'
+        }
+      },
+      {
+        name: 'Loja Virtual com mais de 20 Produtos',
+        shortName: 'E-commerce acima de 20 produtos',
+        slug: 'ecommerce-mais-de-20-produtos',
+        category: 'Loja Virtual',
+        categorySlug: 'loja-virtual',
+        path: '/marketing-digital/loja-virtual/ecommerce-mais-de-20-produtos',
+        description: 'Criação de loja virtual para projetos com mais de 20 produtos.',
+        priceCents: 200000,
+        status: 'planned',
+        seo: {
+          title: 'Criação de Loja Virtual com mais de 20 Produtos | Resodi',
+          description: 'Criação de loja virtual para catálogos com mais de 20 produtos.'
+        }
+      },
       {
         name: 'Melhoria de Design de Loja Virtual',
         shortName: 'Melhoria de Design',
