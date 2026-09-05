@@ -5,6 +5,7 @@ import { Tools } from './routes/Tools';
 import { Services } from './routes/Services';
 import { MarketingDigital } from './routes/MarketingDigital';
 import { Help } from './routes/Help';
+import { ServiceDetailPage } from './routes/ServiceDetailPage';
 import { NotFound } from './routes/NotFound';
 import { ReceiptPage } from '../tools/receipt/ReceiptPage';
 import { ResumePage } from '../tools/resume/ResumePage';
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: 'servicos', element: <Services /> },
       { path: 'marketing-digital', element: <MarketingDigital /> },
       { path: 'ajuda', element: <Help /> },
+      { path: 'servicos/:categorySlug/:serviceSlug', element: <ServiceDetailPage /> },
       { path: 'ferramentas/gerador-de-recibo', element: <ReceiptPage /> },
       { path: 'ferramentas/gerador-de-curriculo', element: <ResumePage /> },
       { path: 'precos', element: <Navigate to="/ajuda" replace /> },
