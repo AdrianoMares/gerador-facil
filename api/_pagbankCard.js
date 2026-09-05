@@ -1,5 +1,6 @@
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
+const PAGBANK_SANDBOX_FEES_FALLBACK_BIN = '552100';
 
 export const MAX_CARD_INSTALLMENTS = 5;
 export const MIN_INSTALLMENT_CENTS = 500;
@@ -24,6 +25,13 @@ function safePagBankFeeError(payload) {
     description: typeof entry?.description === 'string' ? entry.description : undefined,
     parameter: typeof entry?.parameter_name === 'string' ? entry.parameter_name : undefined
   }));
+}
+
+function isSandboxBinDataNotFound(payload) {
+  return safePagBankFeeError(payload).some((entry) => (
+    entry.code === 'credit_card_bin_data_not_found'
+    || (entry.parameter === 'credit_card_bin' && entry.description === 'credit_card_bin data not found.')
+  ));
 }
 
 function safePagBankFeeShape(payload) {
@@ -115,10 +123,7 @@ export function validatePagBankFeePlans(payload, baseAmount) {
   return plans;
 }
 
-export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) {
-  if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
-  if (!validCardBin(cardBin)) throw new Error('INVALID_CARD_BIN');
-
+async function requestPagBankFeePayload(fetchImpl, env, baseAmount, cardBin, signal) {
   const query = new URLSearchParams({
     payment_methods: 'CREDIT_CARD',
     value: String(baseAmount),
@@ -126,21 +131,41 @@ export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) 
     max_installments_no_interest: '0',
     credit_card_bin: cardBin
   });
+  const response = await fetchImpl(`${PAGBANK_SANDBOX_URL}/charges/fees/calculate?${query}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
+    signal
+  });
+  let payload;
+  try {
+    payload = await response.json();
+  } catch {
+    console.warn('PagBank Fees diagnostic', { status: response.status, parseError: true });
+    throw new Error('PAGBANK_FEES_UNAVAILABLE');
+  }
+  return { response, payload };
+}
+
+export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) {
+  if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+  if (!validCardBin(cardBin)) throw new Error('INVALID_CARD_BIN');
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
   try {
-    const response = await fetchImpl(`${PAGBANK_SANDBOX_URL}/charges/fees/calculate?${query}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
-      signal: controller.signal
-    });
-    let payload;
-    try {
-      payload = await response.json();
-    } catch {
-      console.warn('PagBank Fees diagnostic', { status: response.status, parseError: true });
-      throw new Error('PAGBANK_FEES_UNAVAILABLE');
+    let { response, payload } = await requestPagBankFeePayload(
+      fetchImpl, env, baseAmount, cardBin, controller.signal
+    );
+
+    if (response.status === 400
+      && cardBin !== PAGBANK_SANDBOX_FEES_FALLBACK_BIN
+      && isSandboxBinDataNotFound(payload)) {
+      console.warn('PagBank Fees sandbox fallback', { reason: 'credit_card_bin_data_not_found' });
+      ({ response, payload } = await requestPagBankFeePayload(
+        fetchImpl, env, baseAmount, PAGBANK_SANDBOX_FEES_FALLBACK_BIN, controller.signal
+      ));
     }
+
     if (!response.ok || response.status !== 200) {
       console.warn('PagBank Fees diagnostic', {
         status: response.status,
