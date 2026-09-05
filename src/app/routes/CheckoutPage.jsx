@@ -3,7 +3,16 @@ import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { downloadFinalDocument } from '../../services/commerce';
-import { checkPagBankPixStatus, createPagBankPix, pollPagBankPixStatus } from '../../services/payments';
+import {
+  cardBinFromNumber,
+  checkPagBankCardStatus,
+  checkPagBankPixStatus,
+  createPagBankCard,
+  createPagBankPix,
+  getPagBankCardInstallments,
+  pollPagBankCardStatus,
+  pollPagBankPixStatus
+} from '../../services/payments';
 
 const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
 const successNoticeStyle = { borderColor: '#b9dfcf', background: '#edf7f2' };
@@ -49,7 +58,14 @@ export function CheckoutPage() {
   const [downloadMessage, setDownloadMessage] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', taxId: '' });
+  const [paymentMethod, setPaymentMethod] = useState('pix');
   const [pixState, setPixState] = useState({ loading: false, error: '', result: null, copied: false });
+  const [holder, setHolder] = useState({ name: '', taxId: '' });
+  const [card, setCard] = useState({ number: '', expMonth: '', expYear: '', securityCode: '' });
+  const [cardState, setCardState] = useState({ loading: false, error: '', result: null });
+  const [installmentPlans, setInstallmentPlans] = useState([]);
+  const [selectedInstallments, setSelectedInstallments] = useState('');
+  const [installmentsError, setInstallmentsError] = useState('');
   const [paymentCheck, setPaymentCheck] = useState({ checking: false, timedOut: false, error: '' });
 
   const loadOrder = useCallback(async () => {
@@ -86,6 +102,46 @@ export function CheckoutPage() {
 
     return () => controller.abort();
   }, [loadOrder, pixState.result, state.order?.id, state.order?.status]);
+
+  const cardBin = cardBinFromNumber(card.number);
+  useEffect(() => {
+    if (paymentMethod !== 'credit_card' || !cardBin || state.order?.status !== 'pending_payment') {
+      return undefined;
+    }
+    let active = true;
+    getPagBankCardInstallments(state.order.id, cardBin)
+      .then((plans) => {
+        if (!active) return;
+        setInstallmentPlans(plans);
+        setSelectedInstallments((current) => plans.some((plan) => String(plan.installments) === current)
+          ? current : String(plans[0]?.installments || ''));
+      })
+      .catch(() => {
+        if (active) {
+          setInstallmentPlans([]);
+          setSelectedInstallments('');
+          setInstallmentsError('Não foi possível calcular as parcelas para este cartão.');
+        }
+      });
+    return () => { active = false; };
+  }, [cardBin, paymentMethod, state.order?.id, state.order?.status]);
+
+  useEffect(() => {
+    if (!cardState.result || state.order?.status !== 'pending_payment') return undefined;
+    const controller = new AbortController();
+    pollPagBankCardStatus(state.order.id, { signal: controller.signal })
+      .then(async (result) => {
+        if (controller.signal.aborted) return;
+        if (result.orderStatus === 'paid') await loadOrder();
+        if (!controller.signal.aborted) setPaymentCheck({ checking: false, timedOut: result.timedOut, error: '' });
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError' && !controller.signal.aborted) {
+          setPaymentCheck({ checking: false, timedOut: true, error: 'Não foi possível verificar automaticamente.' });
+        }
+      });
+    return () => controller.abort();
+  }, [cardState.result, loadOrder, state.order?.id, state.order?.status]);
 
   if (state.loading) {
     return <div className="container page-section checkout-page"><p>Carregando pedido...</p></div>;
@@ -127,6 +183,26 @@ export function CheckoutPage() {
     setCustomer((current) => ({ ...current, [name]: value }));
   }
 
+  function handleCardChange(event) {
+    const { name, value } = event.target;
+    if (name === 'number' && cardBinFromNumber(value) !== cardBin) {
+      setInstallmentPlans([]);
+      setSelectedInstallments('');
+      setInstallmentsError('');
+    }
+    setCard((current) => ({ ...current, [name]: value }));
+  }
+
+  function handlePaymentMethodChange(event) {
+    setPaymentMethod(event.target.value);
+    setPaymentCheck({ checking: false, timedOut: false, error: '' });
+  }
+
+  function handleHolderChange(event) {
+    const { name, value } = event.target;
+    setHolder((current) => ({ ...current, [name]: value }));
+  }
+
   async function handleCreatePix(event) {
     event.preventDefault();
     setPixState({ loading: true, error: '', result: null, copied: false });
@@ -152,10 +228,42 @@ export function CheckoutPage() {
     }
   }
 
+  async function handleCreateCard(event) {
+    event.preventDefault();
+    setCardState({ loading: true, error: '', result: null });
+    try {
+      const result = await createPagBankCard({
+        orderId: state.order.id,
+        customer,
+        holder,
+        card,
+        installments: Number(selectedInstallments)
+      });
+      setCard({ number: '', expMonth: '', expYear: '', securityCode: '' });
+      setCardState({ loading: false, error: '', result });
+      setPaymentCheck({ checking: true, timedOut: false, error: '' });
+    } catch (error) {
+      setCard((current) => ({ ...current, securityCode: '' }));
+      const messages = {
+        PAGBANK_DECLINED: 'Pagamento recusado. Confira os dados ou tente outro cartão.',
+        PAGBANK_REJECTED: 'Pagamento recusado. Confira os dados ou tente outro cartão.',
+        CARD_CREATION_UNCERTAIN: 'Não foi possível confirmar a cobrança. Aguarde antes de tentar novamente.',
+        PUBLIC_KEY_NOT_CONFIGURED: 'A chave de cartão do ambiente de teste ainda não foi configurada.'
+      };
+      setCardState({
+        loading: false,
+        error: messages[error?.code] || 'Não foi possível processar o cartão. Confira os dados e tente novamente.',
+        result: null
+      });
+    }
+  }
+
   async function handleCheckPayment() {
     setPaymentCheck({ checking: true, timedOut: false, error: '' });
     try {
-      const result = await checkPagBankPixStatus(state.order.id);
+      const result = paymentMethod === 'credit_card'
+        ? await checkPagBankCardStatus(state.order.id)
+        : await checkPagBankPixStatus(state.order.id);
       if (result.orderStatus === 'paid') await loadOrder();
       setPaymentCheck({ checking: false, timedOut: result.orderStatus !== 'paid', error: '' });
     } catch {
@@ -186,9 +294,14 @@ export function CheckoutPage() {
       </section>
       {pending && pagBankSandboxEnabled && (
         <section className="checkout-notice checkout-pix" aria-live="polite">
-          <h2>Pagamento via Pix — Ambiente de teste</h2>
-          <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank e não é armazenado pela Resodi nesta etapa.</p>
-          {!pixState.result ? (
+          <h2>Pagamento — Ambiente de teste</h2>
+          <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank. Número, validade, CVV, BIN e cartão criptografado não são armazenados pela Resodi.</p>
+          <fieldset className="checkout-payment-method">
+            <legend>Forma de pagamento</legend>
+            <label><input type="radio" name="paymentMethod" value="pix" checked={paymentMethod === 'pix'} onChange={handlePaymentMethodChange} /> Pix</label>
+            <label><input type="radio" name="paymentMethod" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={handlePaymentMethodChange} /> Cartão de crédito</label>
+          </fieldset>
+          {paymentMethod === 'pix' && !pixState.result && (
             <form className="checkout-pix-form" onSubmit={handleCreatePix}>
               <label className="form-field">
                 <span>Nome completo</span>
@@ -211,7 +324,8 @@ export function CheckoutPage() {
               </button>
               {pixState.error && <p className="checkout-pix-error" role="alert">{pixState.error}</p>}
             </form>
-          ) : (
+          )}
+          {paymentMethod === 'pix' && pixState.result && (
             <div className="checkout-pix-result">
               {pixState.result.pix.qrCodeUrl && (
                 <img src={pixState.result.pix.qrCodeUrl} alt="QR Code Pix do ambiente de teste" width="240" height="240" />
@@ -231,6 +345,78 @@ export function CheckoutPage() {
               )}
               {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
               <p>Expira em: <strong>{new Date(pixState.result.pix.expiresAt).toLocaleString('pt-BR')}</strong></p>
+              <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
+            </div>
+          )}
+          {paymentMethod === 'credit_card' && !cardState.result && (
+            <form className="checkout-card-form" onSubmit={handleCreateCard}>
+              <label className="form-field">
+                <span>Nome completo</span>
+                <input className="input" name="name" autoComplete="name" value={customer.name} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>E-mail</span>
+                <input className="input" type="email" name="email" autoComplete="email" value={customer.email} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>WhatsApp</span>
+                <input className="input" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="(11) 99999-9999" value={customer.phone} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>CPF/CNPJ do pagador</span>
+                <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={customer.taxId} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>Nome do titular</span>
+                <input className="input" name="name" autoComplete="cc-name" value={holder.name} onChange={handleHolderChange} required />
+              </label>
+              <label className="form-field">
+                <span>CPF do titular</span>
+                <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={holder.taxId} onChange={handleHolderChange} required />
+              </label>
+              <label className="form-field checkout-card-number">
+                <span>Número do cartão</span>
+                <input className="input" name="number" inputMode="numeric" autoComplete="cc-number" value={card.number} onChange={handleCardChange} required />
+              </label>
+              <label className="form-field">
+                <span>Mês de validade</span>
+                <input className="input" name="expMonth" inputMode="numeric" autoComplete="cc-exp-month" placeholder="MM" maxLength="2" value={card.expMonth} onChange={handleCardChange} required />
+              </label>
+              <label className="form-field">
+                <span>Ano de validade</span>
+                <input className="input" name="expYear" inputMode="numeric" autoComplete="cc-exp-year" placeholder="AAAA" maxLength="4" value={card.expYear} onChange={handleCardChange} required />
+              </label>
+              <label className="form-field">
+                <span>CVV</span>
+                <input className="input" type="password" name="securityCode" inputMode="numeric" autoComplete="cc-csc" maxLength="4" value={card.securityCode} onChange={handleCardChange} required />
+              </label>
+              <label className="form-field checkout-card-number">
+                <span>Parcelas</span>
+                <select className="select" value={selectedInstallments} onChange={(event) => setSelectedInstallments(event.target.value)} disabled={!installmentPlans.length} required>
+                  <option value="">Informe o cartão para calcular</option>
+                  {installmentPlans.map((plan) => (
+                    <option key={plan.installments} value={plan.installments}>
+                      {plan.installments}x de {formatCents(plan.installmentValue, 'BRL')}
+                      {plan.interestFree ? ' sem taxa' : ` — total ${formatCents(plan.totalAmount, 'BRL')}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {installmentsError && <p className="checkout-pix-error checkout-card-number" role="alert">{installmentsError}</p>}
+              <button className="button checkout-card-number" type="submit" disabled={cardState.loading || !selectedInstallments}>
+                {cardState.loading ? 'Processando pagamento...' : 'Pagar com cartão'}
+              </button>
+              {cardState.error && <p className="checkout-pix-error checkout-card-number" role="alert">{cardState.error}</p>}
+            </form>
+          )}
+          {paymentMethod === 'credit_card' && cardState.result && (
+            <div className="checkout-card-result">
+              <p><strong>Pagamento em processamento.</strong> A confirmação será feita diretamente com o PagBank.</p>
+              {paymentCheck.checking && <p role="status">Verificando pagamento automaticamente...</p>}
+              {paymentCheck.timedOut && (
+                <button className="button" type="button" onClick={handleCheckPayment} disabled={paymentCheck.checking}>Verificar pagamento</button>
+              )}
+              {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
               <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
             </div>
           )}
