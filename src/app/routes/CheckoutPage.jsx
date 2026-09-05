@@ -353,7 +353,7 @@ export function CheckoutPage() {
       {pending && pagBankSandboxEnabled && (
         <section className="checkout-notice checkout-pix" style={paymentNoticeStyle} aria-live="polite">
           <h2>Pagamento — Ambiente de teste</h2>
-          <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank. Dados do cartão não são armazenados pela Resodi.</p>
+          <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank. Número, validade, CVV, BIN e cartão criptografado não são armazenados pela Resodi.</p>
           <fieldset className="checkout-payment-method">
             <legend>Forma de pagamento</legend>
             <label><input type="radio" name="paymentMethod" value="pix" checked={paymentMethod === 'pix'} onChange={handlePaymentMethodChange} /> Pix</label>

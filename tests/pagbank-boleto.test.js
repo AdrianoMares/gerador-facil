@@ -435,3 +435,18 @@ test('hash consultado no acesso público deriva do token e nunca do order_id', a
   assert.equal(observedHash, createHash('sha256').update(token).digest('hex'));
   assert.equal(response.statusCode, 404);
 });
+
+test('rota com token não envia URL para telemetria, referrer ou indexadores', () => {
+  const main = readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8');
+  const vercel = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert.match(main, /pathname\.startsWith\('\/pedido\/'\) \? null : event/);
+  assert.match(main, /<Analytics beforeSend=\{suppressPublicOrderTelemetry\}/);
+  assert.match(main, /<SpeedInsights beforeSend=\{suppressPublicOrderTelemetry\}/);
+  const protectedRoute = vercel.headers.find((entry) => entry.source === '/pedido/(.*)');
+  assert.equal(protectedRoute.headers.some((header) => (
+    header.key === 'Referrer-Policy' && header.value === 'no-referrer'
+  )), true);
+  assert.equal(protectedRoute.headers.some((header) => (
+    header.key === 'X-Robots-Tag' && header.value.includes('noindex')
+  )), true);
+});
