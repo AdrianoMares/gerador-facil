@@ -11,7 +11,8 @@ export function Header() {
         <nav className="nav" aria-label="Navegação principal">
           <NavLink to="/ferramentas">Ferramentas</NavLink>
           <NavLink to="/servicos">Serviços</NavLink>
-          <NavLink to="/precos">Preços</NavLink>
+          <NavLink to="/marketing-digital">Marketing Digital</NavLink>
+          <NavLink to="/ajuda">Ajuda</NavLink>
         </nav>
       </div>
     </header>
