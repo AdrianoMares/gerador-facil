@@ -59,6 +59,7 @@ export const serviceCategories = [
         categorySlug: 'mei',
         path: '/servicos/mei/declaracao-anual-mei',
         description: 'Auxílio para envio da Declaração Anual do MEI (DASN-SIMEI).',
+        priceCents: 10000,
         status: 'draft',
         seo: {
           title: 'Declaração Anual do MEI (DASN-SIMEI) Online',
