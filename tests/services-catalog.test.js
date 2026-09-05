@@ -36,11 +36,11 @@ test('rota individual, SEO e card respeitam o status do serviço', () => {
   assert.doesNotMatch(sitemap, /declaracao-anual-mei/);
 });
 
-test('serviço MEI preserva o checkout server-side sem inventar preço', () => {
+test('serviço MEI preserva o checkout server-side com preço definido', () => {
   const service = findServiceBySlugs('mei', 'declaracao-anual-mei');
 
   assert.equal(service?.checkout?.productCode, 'declaracao_anual_mei');
-  assert.equal(service?.priceCents, undefined);
+  assert.equal(service?.priceCents, 10000);
   assert.equal(service?.status, 'draft');
 });
 
