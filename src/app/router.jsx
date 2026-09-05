@@ -12,6 +12,7 @@ import { ReceiptPage } from '../tools/receipt/ReceiptPage';
 import { ResumePage } from '../tools/resume/ResumePage';
 import { CheckoutPage } from './routes/CheckoutPage';
 import { ServiceOrderSuccessNotice } from '../components/ServiceOrderSuccessNotice';
+import { PublicOrderPage } from './routes/PublicOrderPage';
 import { LegalDocumentPage } from '../legal/LegalDocumentPage';
 import { legalDocumentsByPath } from '../legal/legalDocuments';
 
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
           </Fragment>
         )
       },
+      { path: 'pedido/:token', element: <PublicOrderPage /> },
       { path: 'termos-de-uso', element: <LegalDocumentPage document={legalDocumentsByPath['/termos-de-uso']} /> },
       { path: 'politica-de-privacidade', element: <LegalDocumentPage document={legalDocumentsByPath['/politica-de-privacidade']} /> },
       { path: '*', element: <NotFound /> }

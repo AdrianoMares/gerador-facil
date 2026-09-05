@@ -17,7 +17,9 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(fallbackPattern.test('/api/payments/pagbank/card/installments'), false);
   assert.equal(fallbackPattern.test('/api/payments/pagbank/card/create'), false);
   assert.equal(fallbackPattern.test('/api/payments/pagbank/card/status'), false);
+  assert.equal(fallbackPattern.test('/api/payments/pagbank/boleto/create'), false);
   assert.equal(fallbackPattern.test('/api/payments/pagbank/webhook'), false);
+  assert.equal(fallbackPattern.test('/api/orders/public-status'), false);
   assert.equal(existsSync(new URL('../api/ai-document-assist.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/ai-transcribe.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/checkout/create.js', import.meta.url)), true);
@@ -28,7 +30,9 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(existsSync(new URL('../api/payments/pagbank/card/installments.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/card/create.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/card/status.js', import.meta.url)), true);
+  assert.equal(existsSync(new URL('../api/payments/pagbank/boleto/create.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/webhook.js', import.meta.url)), true);
+  assert.equal(existsSync(new URL('../api/orders/public-status.js', import.meta.url)), true);
 });
 
 test('arquivos de SEO não caem no fallback da SPA', () => {
@@ -67,5 +71,6 @@ test('fallback da SPA mantém deep links dos geradores', () => {
   assert.equal(fallbackPattern.test('/ferramentas/gerador-de-recibo'), true);
   assert.equal(fallbackPattern.test('/ferramentas/gerador-de-curriculo'), true);
   assert.equal(fallbackPattern.test('/checkout/7e9f8d13-7f09-4ed1-aecb-a35d447f0e7a'), true);
+  assert.equal(fallbackPattern.test(`/pedido/${'A'.repeat(43)}`), true);
   assert.equal(fallback.destination, '/index.html');
 });

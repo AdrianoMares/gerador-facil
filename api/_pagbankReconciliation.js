@@ -1,3 +1,5 @@
+import { sendServicePaymentConfirmedEmail } from './_transactionalEmail.js';
+
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -8,20 +10,49 @@ function validOptionalId(value, pattern) {
   return value === null || value === undefined || pattern.test(value);
 }
 
+function validBoletoUrl(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'boleto.pagseguro.com.br'
+      && url.pathname.endsWith('.pdf');
+  } catch {
+    return false;
+  }
+}
+
+function chargeBoletoUrl(charge) {
+  const href = Array.isArray(charge?.links)
+    ? charge.links.find((link) => link?.rel === 'SELF'
+      && link?.media === 'application/pdf' && link?.type === 'GET')?.href
+    : null;
+  return validBoletoUrl(href) ? new URL(href).toString() : null;
+}
+
 function validLocalContext(payment) {
   const order = payment?.order;
   const buyerFee = payment?.buyer_fee_cents ?? 0;
   const installments = payment?.installments ?? null;
-  const methodAmountsMatch = payment?.payment_method === 'pix'
-    ? buyerFee === 0 && installments === null && payment.amount_cents === order?.total_cents
-    : payment?.payment_method === 'credit_card'
-      && Number.isInteger(installments) && installments >= 1 && installments <= 5
+  let methodAmountsMatch = payment?.payment_method === 'pix'
+    && buyerFee === 0 && installments === null && payment.amount_cents === order?.total_cents;
+  if (payment?.payment_method === 'credit_card') {
+    methodAmountsMatch = Number.isInteger(installments) && installments >= 1 && installments <= 5
       && Number.isInteger(buyerFee) && buyerFee >= 0
       && (installments === 1 ? buyerFee === 0 : buyerFee > 0)
       && payment.amount_cents === order?.total_cents + buyerFee;
+  }
+  if (payment?.payment_method === 'boleto') {
+    methodAmountsMatch = buyerFee === 0 && installments === null
+      && payment.amount_cents === order?.total_cents
+      && typeof payment.boleto_due_date === 'string'
+      && /^\d{4}-\d{2}-\d{2}$/.test(payment.boleto_due_date)
+      && /^\d{44,60}$/.test(payment.boleto_barcode || '')
+      && /^[\d. ]{44,80}$/.test(payment.boleto_formatted_barcode || '')
+      && validBoletoUrl(payment.boleto_url);
+  }
   return payment?.provider === 'pagbank'
     && payment.provider_environment === 'sandbox'
-    && ['pix', 'credit_card'].includes(payment.payment_method)
+    && ['pix', 'credit_card', 'boleto'].includes(payment.payment_method)
     && validOptionalId(payment.external_order_id, PAGBANK_ORDER_PATTERN)
     && validOptionalId(payment.external_payment_id, PAGBANK_CHARGE_PATTERN)
     && order
@@ -65,19 +96,29 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
   const originalAmount = charge?.amount?.value;
   const summary = charge?.amount?.summary;
   const refundedAmount = summary?.refunded;
-  const expectedProviderMethod = payment.payment_method === 'pix' ? 'PIX' : 'CREDIT_CARD';
+  const expectedProviderMethod = {
+    pix: 'PIX',
+    credit_card: 'CREDIT_CARD',
+    boleto: 'BOLETO'
+  }[payment.payment_method];
   const buyerFee = payment.buyer_fee_cents ?? 0;
   const installments = payment.installments ?? null;
   const providerBuyerInterest = charge?.amount?.fees?.buyer?.interest;
-  const cardDetailsValid = payment.payment_method === 'pix'
+  const methodDetailsValid = payment.payment_method === 'pix'
     ? charge?.payment_method?.installments === undefined
-    : charge?.payment_method?.installments === installments
-      && (installments === 1
-        ? providerBuyerInterest?.total === undefined || providerBuyerInterest.total === 0
-        : providerBuyerInterest?.total === buyerFee
-          && Number.isInteger(providerBuyerInterest?.installments)
-          && providerBuyerInterest.installments >= 1
-          && providerBuyerInterest.installments <= installments);
+    : payment.payment_method === 'boleto'
+      ? charge?.payment_method?.installments === undefined
+        && charge?.payment_method?.boleto?.due_date === payment.boleto_due_date
+        && charge?.payment_method?.boleto?.barcode === payment.boleto_barcode
+        && charge?.payment_method?.boleto?.formatted_barcode === payment.boleto_formatted_barcode
+        && chargeBoletoUrl(charge) === payment.boleto_url
+      : charge?.payment_method?.installments === installments
+        && (installments === 1
+          ? providerBuyerInterest?.total === undefined || providerBuyerInterest.total === 0
+          : providerBuyerInterest?.total === buyerFee
+            && Number.isInteger(providerBuyerInterest?.installments)
+            && providerBuyerInterest.installments >= 1
+            && providerBuyerInterest.installments <= installments);
 
   if (!charge
     || charge.reference_id !== payment.id
@@ -85,7 +126,7 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
     || originalAmount !== payment.order.total_cents + buyerFee
     || charge.amount?.currency !== 'BRL'
     || charge.payment_method?.type !== expectedProviderMethod
-    || !cardDetailsValid
+    || !methodDetailsValid
     || !PROVIDER_STATUSES.has(charge.status)
     || !summary || typeof summary !== 'object'
     || !Number.isInteger(summary.total) || summary.total !== originalAmount
@@ -172,6 +213,19 @@ async function fulfillPaidOrder({ backend, payment, orderId, logError }) {
   return false;
 }
 
+async function notifyPaidBoleto({
+  backend,
+  payment,
+  orderId,
+  fetchImpl,
+  env,
+  logError,
+  fulfillmentCompleted
+}) {
+  if (!fulfillmentCompleted || payment.payment_method !== 'boleto') return;
+  await sendServicePaymentConfirmedEmail({ backend, orderId, fetchImpl, env, logError });
+}
+
 export async function reconcilePagBankPayment({
   backend,
   payment,
@@ -212,6 +266,9 @@ export async function reconcilePagBankPayment({
     });
     if (error || orderId !== payment.order.id) throw new Error('PAYMENT_REFUND_UNAVAILABLE');
     const fulfillmentCompleted = await fulfillPaidOrder({ backend, payment, orderId, logError });
+    await notifyPaidBoleto({
+      backend, payment, orderId, fetchImpl, env, logError, fulfillmentCompleted
+    });
     return {
       orderStatus: 'paid',
       paymentStatus: 'paid',
@@ -243,6 +300,9 @@ export async function reconcilePagBankPayment({
   if (confirmationError || orderId !== payment.order.id) throw new Error('PAYMENT_CONFIRMATION_UNAVAILABLE');
 
   const fulfillmentCompleted = await fulfillPaidOrder({ backend, payment, orderId, logError });
+  await notifyPaidBoleto({
+    backend, payment, orderId, fetchImpl, env, logError, fulfillmentCompleted
+  });
 
   return { orderStatus: 'paid', paymentStatus: 'paid', providerStatus: 'PAID', fulfillmentCompleted };
 }
