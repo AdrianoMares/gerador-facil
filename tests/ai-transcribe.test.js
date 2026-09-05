@@ -5,7 +5,7 @@ import {
   DEFAULT_TRANSCRIPTION_MODEL,
   MAX_AUDIO_BYTES,
   MAX_TRANSCRIPTION_BODY_BYTES
-} from '../api/ai-transcribe.js';
+} from '../api/_aiTranscribe.js';
 
 const env = {
   VITE_SUPABASE_URL: 'https://example.supabase.co',

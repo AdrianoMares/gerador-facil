@@ -13,6 +13,7 @@ import {
   requestContentLength,
   sendJson
 } from './_documentAiAuth.js';
+import { createAiTranscribeHandler } from './_aiTranscribe.js';
 
 export const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 
@@ -162,4 +163,10 @@ export function createAiDocumentAssistHandler({
   };
 }
 
-export default createAiDocumentAssistHandler();
+const aiDocumentAssistHandler = createAiDocumentAssistHandler();
+const aiTranscribeHandler = createAiTranscribeHandler();
+
+export default function aiGateway(request, response) {
+  if (request.query?.handler === 'transcribe') return aiTranscribeHandler(request, response);
+  return aiDocumentAssistHandler(request, response);
+}

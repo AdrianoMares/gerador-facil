@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
-const fallback = config.rewrites[0];
+const aiTranscribeRewrite = config.rewrites.find((entry) => entry.source === '/api/ai-transcribe');
+const fallback = config.rewrites.find((entry) => entry.destination === '/index.html');
 const fallbackPattern = new RegExp(`^${fallback.source}$`);
 
 test('fallback da SPA não captura Vercel Functions em /api', () => {
@@ -21,9 +22,12 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(fallbackPattern.test('/api/payments/pagbank/webhook'), false);
   assert.equal(fallbackPattern.test('/api/orders/public-status'), false);
   assert.equal(existsSync(new URL('../api/ai-document-assist.js', import.meta.url)), true);
-  assert.equal(existsSync(new URL('../api/ai-transcribe.js', import.meta.url)), true);
+  assert.equal(existsSync(new URL('../api/ai-transcribe.js', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../api/_aiTranscribe.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/checkout/create.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/documents/download.js', import.meta.url)), true);
+  assert.equal(existsSync(new URL('../api/documents/pdfRenderers.js', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../api/_documentPdfRenderers.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/pix/create.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/pix/status.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/card/public-key.js', import.meta.url)), true);
@@ -33,6 +37,13 @@ test('fallback da SPA não captura Vercel Functions em /api', () => {
   assert.equal(existsSync(new URL('../api/payments/pagbank/boleto/create.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/payments/pagbank/webhook.js', import.meta.url)), true);
   assert.equal(existsSync(new URL('../api/orders/public-status.js', import.meta.url)), true);
+});
+
+test('transcrição compartilha a função de IA sem alterar a URL pública', () => {
+  assert.deepEqual(aiTranscribeRewrite, {
+    source: '/api/ai-transcribe',
+    destination: '/api/ai-document-assist?handler=transcribe'
+  });
 });
 
 test('arquivos de SEO não caem no fallback da SPA', () => {
