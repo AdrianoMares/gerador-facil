@@ -85,7 +85,7 @@ export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) 
     payment_methods: 'CREDIT_CARD',
     value: String(baseAmount),
     max_installments: String(MAX_CARD_INSTALLMENTS),
-    max_installments_no_interest: '1',
+    max_installments_no_interest: '0',
     credit_card_bin: cardBin
   });
   const controller = new AbortController();
