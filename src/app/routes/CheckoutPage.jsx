@@ -131,18 +131,6 @@ export function CheckoutPage() {
   }, [cardBin, paymentMethod, state.order?.id, state.order?.status]);
 
   useEffect(() => {
-    if (sameHolderName) {
-      setHolder((current) => ({ ...current, name: customer.name }));
-    }
-  }, [customer.name, sameHolderName]);
-
-  useEffect(() => {
-    if (sameHolderTaxId) {
-      setHolder((current) => ({ ...current, taxId: customer.taxId }));
-    }
-  }, [customer.taxId, sameHolderTaxId]);
-
-  useEffect(() => {
     if (!cardState.result || state.order?.status !== 'pending_payment') return undefined;
     const controller = new AbortController();
     pollPagBankCardStatus(state.order.id, { signal: controller.signal })
@@ -263,7 +251,10 @@ export function CheckoutPage() {
       const result = await createPagBankCard({
         orderId: state.order.id,
         customer,
-        holder,
+        holder: {
+          name: sameHolderName ? customer.name : holder.name,
+          taxId: sameHolderTaxId ? customer.taxId : holder.taxId
+        },
         card,
         installments: Number(selectedInstallments)
       });
@@ -396,7 +387,7 @@ export function CheckoutPage() {
               </label>
               <div className="form-field">
                 <label htmlFor="card-holder-name">Nome do titular</label>
-                <input id="card-holder-name" className="input" name="name" autoComplete="cc-name" value={holder.name} onChange={handleHolderChange} readOnly={sameHolderName} required />
+                <input id="card-holder-name" className="input" name="name" autoComplete="cc-name" value={sameHolderName ? customer.name : holder.name} onChange={handleHolderChange} readOnly={sameHolderName} required />
                 <label className="checkbox-field">
                   <input type="checkbox" checked={sameHolderName} onChange={handleSameHolderNameChange} />
                   Igual ao nome completo acima
@@ -404,7 +395,7 @@ export function CheckoutPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="card-holder-tax-id">CPF do titular</label>
-                <input id="card-holder-tax-id" className="input" name="taxId" inputMode="numeric" autoComplete="off" value={holder.taxId} onChange={handleHolderChange} readOnly={sameHolderTaxId} required />
+                <input id="card-holder-tax-id" className="input" name="taxId" inputMode="numeric" autoComplete="off" value={sameHolderTaxId ? customer.taxId : holder.taxId} onChange={handleHolderChange} readOnly={sameHolderTaxId} required />
                 <label className="checkbox-field">
                   <input type="checkbox" checked={sameHolderTaxId} onChange={handleSameHolderTaxIdChange} />
                   Igual ao CPF do pagador acima

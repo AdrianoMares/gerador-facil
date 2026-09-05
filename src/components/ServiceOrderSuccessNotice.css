@@ -1,0 +1,22 @@
+.service-order-success-wrap {
+  margin-top: -54px;
+  margin-bottom: 72px;
+}
+
+.service-order-success-card {
+  border-color: #b9dfcf;
+  background: #edf7f2;
+}
+
+.service-order-success-card h2 {
+  color: #247f59;
+}
+
+.service-order-success-card p + p {
+  margin-top: 10px;
+}
+
+.service-order-success-test {
+  color: #6b7f91 !important;
+  font-size: 0.85rem;
+}

@@ -13,7 +13,7 @@ export function ServiceCard({ service }) {
           {service.priceSuffix ? ` ${service.priceSuffix}` : ''}
         </p>
       )}
-      {service.status === 'planned' && <span className="service-status">Em breve</span>}
+      {service.status !== 'active' && <span className="service-status">Em breve</span>}
     </>
   );
 

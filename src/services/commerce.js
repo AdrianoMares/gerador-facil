@@ -12,6 +12,27 @@ export async function getCommerceSession() {
   return data.session;
 }
 
+export async function recordServiceLegalAcceptances() {
+  const client = await requireSessionClient();
+  const session = await getCommerceSession();
+  if (!session?.access_token) {
+    const error = new Error('Faça uma nova verificação para continuar.');
+    error.code = 'UNAUTHORIZED';
+    throw error;
+  }
+
+  for (const documentType of ['terms_of_use', 'privacy_policy']) {
+    const { error } = await client.rpc('record_legal_acceptance', {
+      p_document_type: documentType
+    });
+    if (error) {
+      const acceptanceError = new Error('Não foi possível registrar os aceites obrigatórios.');
+      acceptanceError.code = error.message || 'LEGAL_ACCEPTANCE_UNAVAILABLE';
+      throw acceptanceError;
+    }
+  }
+}
+
 export async function createCheckoutOrder({ productCode, resourceId }, {
   fetchImpl = fetch,
   getSession = getCommerceSession

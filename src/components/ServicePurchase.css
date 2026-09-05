@@ -1,0 +1,31 @@
+.service-purchase-price {
+  margin: 2px 0 12px;
+  color: #0d2742;
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.service-legal-check {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0;
+  color: #496177;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.service-legal-check input {
+  margin-top: 3px;
+  accent-color: #2e9e6f;
+}
+
+.service-legal-check a {
+  color: #163b63;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.service-purchase .button {
+  margin-top: 14px;
+}
