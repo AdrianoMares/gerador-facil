@@ -15,6 +15,7 @@ import {
 } from '../../services/payments';
 
 const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
+const paymentNoticeStyle = { borderColor: '#163B63', background: '#F4F6F8' };
 const successNoticeStyle = { borderColor: '#b9dfcf', background: '#edf7f2' };
 const successHeadingStyle = { color: '#247f59' };
 
@@ -61,6 +62,8 @@ export function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [pixState, setPixState] = useState({ loading: false, error: '', result: null, copied: false });
   const [holder, setHolder] = useState({ name: '', taxId: '' });
+  const [sameHolderName, setSameHolderName] = useState(false);
+  const [sameHolderTaxId, setSameHolderTaxId] = useState(false);
   const [card, setCard] = useState({ number: '', expMonth: '', expYear: '', securityCode: '' });
   const [cardState, setCardState] = useState({ loading: false, error: '', result: null });
   const [installmentPlans, setInstallmentPlans] = useState([]);
@@ -113,6 +116,7 @@ export function CheckoutPage() {
       .then((plans) => {
         if (!active) return;
         setInstallmentPlans(plans);
+        setInstallmentsError('');
         setSelectedInstallments((current) => plans.some((plan) => String(plan.installments) === current)
           ? current : String(plans[0]?.installments || ''));
       })
@@ -125,6 +129,18 @@ export function CheckoutPage() {
       });
     return () => { active = false; };
   }, [cardBin, paymentMethod, state.order?.id, state.order?.status]);
+
+  useEffect(() => {
+    if (sameHolderName) {
+      setHolder((current) => ({ ...current, name: customer.name }));
+    }
+  }, [customer.name, sameHolderName]);
+
+  useEffect(() => {
+    if (sameHolderTaxId) {
+      setHolder((current) => ({ ...current, taxId: customer.taxId }));
+    }
+  }, [customer.taxId, sameHolderTaxId]);
 
   useEffect(() => {
     if (!cardState.result || state.order?.status !== 'pending_payment') return undefined;
@@ -201,6 +217,18 @@ export function CheckoutPage() {
   function handleHolderChange(event) {
     const { name, value } = event.target;
     setHolder((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleSameHolderNameChange(event) {
+    const checked = event.target.checked;
+    setSameHolderName(checked);
+    if (checked) setHolder((current) => ({ ...current, name: customer.name }));
+  }
+
+  function handleSameHolderTaxIdChange(event) {
+    const checked = event.target.checked;
+    setSameHolderTaxId(checked);
+    if (checked) setHolder((current) => ({ ...current, taxId: customer.taxId }));
   }
 
   async function handleCreatePix(event) {
@@ -293,7 +321,7 @@ export function CheckoutPage() {
         <p className="checkout-status">Status: <strong>{statusLabels[state.order.status] || 'Indisponível'}</strong></p>
       </section>
       {pending && pagBankSandboxEnabled && (
-        <section className="checkout-notice checkout-pix" aria-live="polite">
+        <section className="checkout-notice checkout-pix" style={paymentNoticeStyle} aria-live="polite">
           <h2>Pagamento — Ambiente de teste</h2>
           <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank. Número, validade, CVV, BIN e cartão criptografado não são armazenados pela Resodi.</p>
           <fieldset className="checkout-payment-method">
@@ -366,14 +394,22 @@ export function CheckoutPage() {
                 <span>CPF/CNPJ do pagador</span>
                 <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={customer.taxId} onChange={handleCustomerChange} required />
               </label>
-              <label className="form-field">
-                <span>Nome do titular</span>
-                <input className="input" name="name" autoComplete="cc-name" value={holder.name} onChange={handleHolderChange} required />
-              </label>
-              <label className="form-field">
-                <span>CPF do titular</span>
-                <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={holder.taxId} onChange={handleHolderChange} required />
-              </label>
+              <div className="form-field">
+                <label htmlFor="card-holder-name">Nome do titular</label>
+                <input id="card-holder-name" className="input" name="name" autoComplete="cc-name" value={holder.name} onChange={handleHolderChange} readOnly={sameHolderName} required />
+                <label className="checkbox-field">
+                  <input type="checkbox" checked={sameHolderName} onChange={handleSameHolderNameChange} />
+                  Igual ao nome completo acima
+                </label>
+              </div>
+              <div className="form-field">
+                <label htmlFor="card-holder-tax-id">CPF do titular</label>
+                <input id="card-holder-tax-id" className="input" name="taxId" inputMode="numeric" autoComplete="off" value={holder.taxId} onChange={handleHolderChange} readOnly={sameHolderTaxId} required />
+                <label className="checkbox-field">
+                  <input type="checkbox" checked={sameHolderTaxId} onChange={handleSameHolderTaxIdChange} />
+                  Igual ao CPF do pagador acima
+                </label>
+              </div>
               <label className="form-field checkout-card-number">
                 <span>Número do cartão</span>
                 <input className="input" name="number" inputMode="numeric" autoComplete="cc-number" value={card.number} onChange={handleCardChange} required />
