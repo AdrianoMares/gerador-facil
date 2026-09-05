@@ -5,7 +5,7 @@ export const MAX_CARD_INSTALLMENTS = 5;
 export const MIN_INSTALLMENT_CENTS = 500;
 
 export function validCardBin(value) {
-  return typeof value === 'string' && /^(?:\d{6}|\d{8})$/.test(value);
+  return typeof value === 'string' && /^\d{6}$/.test(value);
 }
 
 function integerCents(value) {
