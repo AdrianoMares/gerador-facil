@@ -1295,7 +1295,8 @@ a:focus-visible {
 }
 
 .checkout-pix-form,
-.checkout-pix-result {
+.checkout-pix-result,
+.checkout-card-result {
   display: grid;
   gap: 16px;
   margin-top: 20px;
@@ -1321,6 +1322,46 @@ a:focus-visible {
 
 .checkout-pix-error {
   color: #873f39 !important;
+}
+
+.checkout-payment-method {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 20px 0 0;
+  border: 0;
+  padding: 0;
+}
+
+.checkout-payment-method legend {
+  width: 100%;
+  margin-bottom: 4px;
+  color: #163b63;
+  font-weight: 600;
+}
+
+.checkout-payment-method label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkout-card-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.checkout-card-number,
+.checkout-card-form > .button {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 620px) {
+  .checkout-card-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 .resume-form {
