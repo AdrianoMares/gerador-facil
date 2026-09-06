@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { findServiceBySlugs } from '../../catalog/servicesRegistry';
+import { malhaFinaSupplement } from '../../catalog/malhaFinaSupplement';
 import { Seo } from '../../components/Seo';
 import { ServicePurchase } from '../../components/ServicePurchase';
 import { siteIdentity } from '../../config/siteIdentity';
@@ -45,7 +47,7 @@ function InlineCta({ service, cta }) {
 function DetailSection({ section, service }) {
   const id = sectionId(section.title);
   return (
-    <section className="service-detail-section" aria-labelledby={id}>
+    <section className={`service-detail-section ${section.className || ''}`} aria-labelledby={id}>
       <h2 id={id}>{section.title}</h2>
       {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
       {section.bullets?.length > 0 && (
@@ -82,6 +84,8 @@ export function ServiceDetailPage() {
   const canonical = `${siteIdentity.domain}${service.path}`;
   const heroTitle = detail.heroTitle || `${service.name}${detail.technicalName ? ` (${detail.technicalName})` : ''}`;
   const hasPrice = Number.isInteger(service.priceCents) && service.priceCents > 0;
+  const supplement = service.slug === 'malha-fina' ? malhaFinaSupplement : null;
+  const faqItems = [...(supplement?.faq || []), ...detail.faq];
   const transparencyParagraphs = detail.transparency?.paragraphs || [
     'A Resodi é uma empresa privada de serviços digitais e não possui vínculo com a Receita Federal, Gov.br ou outros órgãos públicos.',
     'A transmissão da DASN-SIMEI pode ser realizada gratuitamente pelos canais oficiais do Governo. O valor cobrado pela Resodi corresponde ao atendimento, orientação, preparação e execução do serviço para o cliente.'
@@ -115,7 +119,7 @@ export function ServiceDetailPage() {
       },
       {
         '@type': 'FAQPage',
-        mainEntity: detail.faq.map(([question, answer]) => ({
+        mainEntity: faqItems.map(([question, answer]) => ({
           '@type': 'Question',
           name: question,
           acceptedAnswer: {
@@ -158,13 +162,23 @@ export function ServiceDetailPage() {
                   </div>
                 )}
                 <p>{detail.purchaseDescription || 'Esta página está sendo preparada para o lançamento do serviço.'}</p>
+                <button className="button service-draft-hero-button" type="button" disabled aria-disabled="true">
+                  Contratar serviço
+                </button>
               </aside>
             )}
           </div>
         </div>
       </section>
       <main className="container page-section service-detail-content">
-        {detail.sections.map((section) => <DetailSection key={section.title} section={section} service={service} />)}
+        {detail.sections.map((section, index) => (
+          <Fragment key={section.title}>
+            <DetailSection section={section} service={service} />
+            {index === 0 && supplement?.sections?.map((supplementSection) => (
+              <DetailSection key={supplementSection.title} section={supplementSection} service={service} />
+            ))}
+          </Fragment>
+        ))}
 
         <ListSection title="O que está incluído no serviço" items={detail.included} className="service-detail-included" />
 
@@ -196,7 +210,7 @@ export function ServiceDetailPage() {
         <section className="service-detail-section" aria-labelledby="perguntas-frequentes">
           <h2 id="perguntas-frequentes">Perguntas frequentes</h2>
           <div className="service-faq">
-            {detail.faq.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}
+            {faqItems.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}
           </div>
         </section>
 
