@@ -130,12 +130,17 @@ export function buildPagBankBoletoPayload({ order, payment, customer, address, d
 
 function officialBoletoUrl(links) {
   const href = Array.isArray(links)
-    ? links.find((link) => link?.rel === 'SELF' && link?.media === 'application/pdf' && link?.type === 'GET')?.href
+    ? links.find((link) => ['SELF', 'CHARGE.BOLETO'].includes(link?.rel)
+      && link?.media === 'application/pdf' && link?.type === 'GET')?.href
     : null;
   if (typeof href !== 'string') return null;
   try {
     const url = new URL(href);
-    return url.protocol === 'https:' && url.hostname === 'boleto.pagseguro.com.br' && url.pathname.endsWith('.pdf')
+    const officialHosts = new Set([
+      'boleto.pagseguro.com.br',
+      'boleto.digital-payments.pagseguro.com'
+    ]);
+    return url.protocol === 'https:' && officialHosts.has(url.hostname) && url.pathname.endsWith('.pdf')
       ? url.toString() : null;
   } catch {
     return null;
