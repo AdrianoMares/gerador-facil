@@ -48,13 +48,20 @@ export function ServicePurchase({ service }) {
   }
 
   const hasPrice = Number.isInteger(service.priceCents) && service.priceCents > 0;
+  const purchaseTitle = service.detail?.purchaseTitle || 'Pronto para contratar?';
+  const purchaseDescription = service.detail?.purchaseDescription || 'Você seguirá para o checkout seguro, com Pix, cartão de crédito ou boleto.';
 
   return (
     <aside className="service-purchase" aria-label="Contratação do serviço">
       <span>Contratação online</span>
-      <strong>Pronto para contratar?</strong>
-      {hasPrice && <div className="service-purchase-price">{formatCurrencyBRL(service.priceCents / 100)}</div>}
-      <p>Você seguirá para o checkout seguro, com Pix, cartão de crédito ou boleto.</p>
+      <strong>{purchaseTitle}</strong>
+      {hasPrice && (
+        <div className="service-purchase-price">
+          {formatCurrencyBRL(service.priceCents / 100)}
+          {service.priceSuffix && <small>{service.priceSuffix}</small>}
+        </div>
+      )}
+      <p>{purchaseDescription}</p>
 
       <label className="service-legal-check">
         <input
