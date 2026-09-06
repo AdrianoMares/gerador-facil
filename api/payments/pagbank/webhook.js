@@ -75,7 +75,7 @@ function webhookIdentifiers(payload) {
 async function loadKnownPayment(backend, identifiers) {
   const { data: payment, error: paymentError } = await backend
     .from('payments')
-    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents')
+    .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents, boleto_due_date, boleto_barcode, boleto_formatted_barcode, boleto_url')
     .eq('id', identifiers.paymentReference)
     .eq('provider', 'pagbank')
     .eq('provider_environment', 'sandbox')
@@ -85,20 +85,25 @@ async function loadKnownPayment(backend, identifiers) {
 
   const { data: order, error: orderError } = await backend
     .from('orders')
-    .select('id, user_id, status, total_cents, currency')
+    .select('id, user_id, status, total_cents, currency, order_items(product:products(product_type, fulfillment_mode))')
     .eq('id', identifiers.orderReference)
     .maybeSingle();
   if (orderError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!order
     || (payment.external_order_id && identifiers.externalOrderId !== payment.external_order_id)
     || (payment.external_payment_id && identifiers.externalPaymentId !== payment.external_payment_id)
-    || !['pix', 'credit_card'].includes(payment.payment_method)
+    || !['pix', 'credit_card', 'boleto'].includes(payment.payment_method)
     || (payment.payment_method === 'pix' && (payment.amount_cents !== order.total_cents
       || (payment.buyer_fee_cents ?? 0) !== 0 || (payment.installments ?? null) !== null))
     || (payment.payment_method === 'credit_card' && (payment.amount_cents !== order.total_cents + payment.buyer_fee_cents
       || !Number.isInteger(payment.installments) || payment.installments < 1 || payment.installments > 5
       || !Number.isInteger(payment.buyer_fee_cents) || payment.buyer_fee_cents < 0
       || (payment.installments === 1 ? payment.buyer_fee_cents !== 0 : payment.buyer_fee_cents <= 0)))
+    || (payment.payment_method === 'boleto' && (payment.amount_cents !== order.total_cents
+      || (payment.buyer_fee_cents ?? 0) !== 0 || (payment.installments ?? null) !== null
+      || !Array.isArray(order.order_items) || order.order_items.length === 0
+      || order.order_items.some((item) => item.product?.product_type !== 'service'
+        || item.product?.fulfillment_mode !== 'service_request')))
     || payment.currency !== order.currency
     || payment.currency !== 'BRL') return null;
   return { ...payment, order };
