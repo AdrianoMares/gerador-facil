@@ -80,6 +80,10 @@ export function PublicOrderPage() {
   }
 
   const order = state.order;
+  const waiting = order.status === 'waiting';
+  const paid = order.status === 'paid';
+  const unavailable = order.status === 'expired_or_cancelled';
+
   return (
     <div className="container page-section checkout-page">
       <span className="eyebrow">Resodi</span>
@@ -90,22 +94,37 @@ export function PublicOrderPage() {
           <strong>{formatCurrencyBRL(order.amountCents / 100)}</strong>
         </div>
         <p className="checkout-status">Situação: <strong>{statusLabels[order.status]}</strong></p>
-        <p>Vencimento: <strong>{formatDate(order.dueDate)}</strong></p>
-        <label className="form-field">
-          <span>Linha digitável</span>
-          <textarea className="textarea checkout-pix-code" readOnly rows="3" value={order.digitableLine} />
-        </label>
-        <div className="public-order-actions">
-          <button className="button" type="button" onClick={handleCopy}>Copiar linha digitável</button>
-          <a className="button button-secondary" href={order.boletoUrl} target="_blank" rel="noreferrer">Abrir boleto oficial</a>
-        </div>
-        {copied && <p role="status">Linha digitável copiada.</p>}
-        {order.status === 'waiting' && <p>O pedido será liberado somente após a confirmação oficial do PagBank.</p>}
-        {order.status === 'paid' && <p>Seu pagamento foi confirmado e sua solicitação já foi registrada.</p>}
-        {order.status === 'expired_or_cancelled' && <p>Este boleto não pode mais ser pago. Inicie uma nova contratação se ainda precisar do serviço.</p>}
-        <button className="button button-secondary" type="button" onClick={load} disabled={state.loading}>
-          {state.loading ? 'Atualizando...' : 'Atualizar situação'}
-        </button>
+
+        {waiting && (
+          <>
+            <p>Vencimento: <strong>{formatDate(order.dueDate)}</strong></p>
+            <label className="form-field">
+              <span>Linha digitável</span>
+              <textarea className="textarea checkout-pix-code" readOnly rows="3" value={order.digitableLine} />
+            </label>
+            <div className="public-order-actions">
+              <button className="button" type="button" onClick={handleCopy}>Copiar linha digitável</button>
+              <a className="button button-secondary" href={order.boletoUrl} target="_blank" rel="noreferrer">Abrir boleto oficial</a>
+            </div>
+            {copied && <p role="status">Linha digitável copiada.</p>}
+            <p>O pedido será liberado somente após a confirmação oficial do PagBank.</p>
+            <button className="button button-secondary" type="button" onClick={load} disabled={state.loading}>
+              {state.loading ? 'Atualizando...' : 'Atualizar situação'}
+            </button>
+          </>
+        )}
+
+        {paid && (
+          <p>Seu pagamento foi confirmado e sua solicitação já foi registrada. As próximas instruções serão enviadas para o e-mail informado na contratação.</p>
+        )}
+
+        {unavailable && (
+          <>
+            <p>Vencimento: <strong>{formatDate(order.dueDate)}</strong></p>
+            <p>Este boleto não pode mais ser pago. Inicie uma nova contratação se ainda precisar do serviço.</p>
+          </>
+        )}
+
         {state.error && <p className="checkout-pix-error" role="alert">{state.error}</p>}
       </section>
     </div>
