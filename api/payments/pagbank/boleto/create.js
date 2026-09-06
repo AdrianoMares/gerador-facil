@@ -138,6 +138,7 @@ function officialBoletoUrl(links) {
     const url = new URL(href);
     const officialHosts = new Set([
       'boleto.pagseguro.com.br',
+      'boleto.sandbox.pagseguro.com.br',
       'boleto.digital-payments.pagseguro.com'
     ]);
     return url.protocol === 'https:' && officialHosts.has(url.hostname) && url.pathname.endsWith('.pdf')
