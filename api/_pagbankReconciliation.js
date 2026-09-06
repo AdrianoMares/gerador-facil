@@ -5,6 +5,11 @@ const PAGBANK_TIMEOUT_MS = 12_000;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PROVIDER_STATUSES = new Set(['WAITING', 'PAID', 'DECLINED', 'CANCELED', 'IN_ANALYSIS', 'AUTHORIZED']);
+const OFFICIAL_BOLETO_HOSTS = new Set([
+  'boleto.pagseguro.com.br',
+  'boleto.sandbox.pagseguro.com.br',
+  'boleto.digital-payments.pagseguro.com'
+]);
 
 function validOptionalId(value, pattern) {
   return value === null || value === undefined || pattern.test(value);
@@ -14,7 +19,7 @@ function validBoletoUrl(value) {
   if (typeof value !== 'string') return false;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'boleto.pagseguro.com.br'
+    return url.protocol === 'https:' && OFFICIAL_BOLETO_HOSTS.has(url.hostname)
       && url.pathname.endsWith('.pdf');
   } catch {
     return false;
@@ -23,7 +28,7 @@ function validBoletoUrl(value) {
 
 function chargeBoletoUrl(charge) {
   const href = Array.isArray(charge?.links)
-    ? charge.links.find((link) => link?.rel === 'SELF'
+    ? charge.links.find((link) => ['SELF', 'CHARGE.BOLETO'].includes(link?.rel)
       && link?.media === 'application/pdf' && link?.type === 'GET')?.href
     : null;
   return validBoletoUrl(href) ? new URL(href).toString() : null;
@@ -138,7 +143,6 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
 
   const isFullyRefunded = refundedAmount === originalAmount;
   const isPartiallyRefunded = refundedAmount > 0 && refundedAmount < originalAmount;
-  // PagBank mantém refund parcial como PAID e representa o refund integral como CANCELED.
   const invalidFinancialSummary = (refundedAmount > 0 && summary.paid !== originalAmount)
     || (isPartiallyRefunded && charge.status !== 'PAID')
     || (isFullyRefunded && charge.status !== 'CANCELED')
