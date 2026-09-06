@@ -3,6 +3,7 @@ import { formatCurrencyBRL } from '../utils/formatters';
 
 export function ServiceCard({ service }) {
   const hasPrice = Number.isInteger(service.priceCents) && service.priceCents > 0;
+  const hasDetailPage = Boolean(service.detail && service.path);
   const content = (
     <>
       <h3>{service.name}</h3>
@@ -17,7 +18,7 @@ export function ServiceCard({ service }) {
     </>
   );
 
-  if (service.status === 'active') {
+  if (service.status === 'active' || hasDetailPage) {
     return <Link className="card service-card service-card-link" to={service.path}>{content}</Link>;
   }
 
