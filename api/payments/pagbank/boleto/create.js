@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { boletoGeneratedEmail, deliverTransactionalEmail } from '../../../_transactionalEmail.js';
+import { verifyTurnstileToken } from '../../../_turnstile.js';
 
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
@@ -10,7 +11,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
-const ALLOWED_BODY_FIELDS = new Set(['orderId', 'customer', 'address']);
+const ALLOWED_BODY_FIELDS = new Set(['orderId', 'customer', 'address', 'turnstileToken']);
 const ALLOWED_CUSTOMER_FIELDS = new Set(['name', 'email', 'taxId']);
 const ALLOWED_ADDRESS_FIELDS = new Set(['street', 'number', 'complement', 'locality', 'city', 'regionCode', 'postalCode']);
 const REGION_NAMES = {
@@ -258,6 +259,10 @@ async function callPagBank(fetchImpl, env, method, paymentId, body, externalOrde
 function publicError(error) {
   const code = error?.message;
   if (code === 'BODY_TOO_LARGE') return { status: 413, code };
+  if (code === 'TURNSTILE_VALIDATION_FAILED') return { status: 403, code };
+  if (['SECURITY_VALIDATION_NOT_CONFIGURED', 'SECURITY_VALIDATION_UNAVAILABLE'].includes(code)) {
+    return { status: 503, code };
+  }
   if (['INVALID_BODY', 'INVALID_CUSTOMER_NAME', 'INVALID_CUSTOMER_EMAIL', 'INVALID_CUSTOMER_TAX_ID', 'INVALID_CUSTOMER_ADDRESS'].includes(code)) {
     return { status: 400, code };
   }
@@ -306,7 +311,8 @@ export function createPagBankBoletoHandler({
   env = process.env,
   now = () => new Date(),
   randomBytesImpl = randomBytes,
-  logError = console.error
+  logError = console.error,
+  verifyTurnstileImpl = verifyTurnstileToken
 } = {}) {
   return async function pagBankBoletoCreate(request, response) {
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
@@ -323,6 +329,7 @@ export function createPagBankBoletoHandler({
       const auth = client(createClientImpl, env, env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY);
       const { data: userData, error: userError } = await auth.auth.getUser(accessToken);
       if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       const backend = client(createClientImpl, env, env.SUPABASE_SERVICE_ROLE_KEY);
       const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_boleto_payment', {
         p_order_id: input.orderId,

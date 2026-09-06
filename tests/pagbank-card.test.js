@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fetchPagBankFeePlans, validatePagBankFeePlans } from '../api/_pagbankCard.js';
 import {
   buildPagBankCardPayload,
-  createPagBankCardHandler,
+  createPagBankCardHandler as createRawPagBankCardHandler,
   validatePagBankCardInput,
   validatePagBankCardResponse
 } from '../api/payments/pagbank/card/create.js';
@@ -25,6 +25,10 @@ const env = {
   PAGBANK_TOKEN: 'secret',
   PAGBANK_WEBHOOK_URL: 'https://example.com/api/payments/pagbank/webhook'
 };
+const createPagBankCardHandler = (options = {}) => createRawPagBankCardHandler({
+  ...options,
+  verifyTurnstileImpl: options.verifyTurnstileImpl || (async () => true)
+});
 
 function feesResponse() {
   return {
@@ -133,7 +137,8 @@ test('entrada da cobrança rejeita dinheiro, taxa ou dados abertos fora do contr
     holder: { name: 'Maria Silva', taxId: '12345678901' },
     encryptedCard: 'encrypted-card-value-long-enough',
     cardBin: '411111',
-    installments: 2
+    installments: 2,
+    turnstileToken: 'turnstile-valid-token'
   };
   assert.equal(validatePagBankCardInput(valid).installments, 2);
   assert.throws(() => validatePagBankCardInput({ ...valid, holder: { ...valid.holder, taxId: '12345678901234' } }), /INVALID_CARD_DATA/);
@@ -152,7 +157,8 @@ function cardRequest() {
       holder: { name: 'Maria Silva', taxId: '12345678901' },
       encryptedCard: 'encrypted-card-value-long-enough',
       cardBin: '411111',
-      installments: 2
+      installments: 2,
+      turnstileToken: 'turnstile-valid-token'
     }
   };
 }
@@ -244,6 +250,28 @@ test('criação revalida Fees, usa idempotency key estável e não confirma PAID
   assert.equal(fixture.calls.rpc.some((call) => call.name === 'record_pagbank_card_creation'), true);
   assert.equal(fixture.payment.encryptedCard, undefined);
   assert.equal(fixture.payment.cardBin, undefined);
+  assert.equal(JSON.stringify(fixture.calls.rpc).includes('turnstile-valid-token'), false);
+});
+
+test('cartão sem token é rejeitado antes de Fees, persistência ou POST de cobrança', async () => {
+  const fixture = cardHandlerFixture(() => { throw new Error('PagBank não deveria ser chamado'); });
+  const request = cardRequest();
+  delete request.body.turnstileToken;
+  const response = responseRecorder();
+  await createRawPagBankCardHandler({
+    createClientImpl: fixture.createClientImpl,
+    fetchImpl: fixture.fetchImpl,
+    env,
+    verifyTurnstileImpl: async (token) => {
+      assert.equal(token, undefined);
+      throw new Error('TURNSTILE_VALIDATION_FAILED');
+    }
+  })(request, response);
+  assert.equal(response.statusCode, 403);
+  assert.equal(response.body.error, 'TURNSTILE_VALIDATION_FAILED');
+  assert.equal(fixture.calls.fees, 0);
+  assert.equal(fixture.calls.post, 0);
+  assert.equal(fixture.calls.rpc.length, 0);
 });
 
 test('timeout deixa tentativa incerta e replay não faz um segundo POST', async () => {

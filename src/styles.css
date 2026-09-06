@@ -1400,6 +1400,22 @@ a:focus-visible {
   color: #873f39 !important;
 }
 
+.checkout-security {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.checkout-security-label {
+  color: #163b63;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.checkout-security small {
+  color: #247f59;
+}
+
 .checkout-payment-method {
   display: flex;
   flex-wrap: wrap;
