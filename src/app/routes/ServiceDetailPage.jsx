@@ -5,6 +5,7 @@ import { ServicePurchase } from '../../components/ServicePurchase';
 import { siteIdentity } from '../../config/siteIdentity';
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { NotFound } from './NotFound';
+import './ServiceDetailPage.css';
 
 function sectionId(title) {
   return title.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
