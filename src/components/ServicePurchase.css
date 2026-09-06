@@ -5,6 +5,14 @@
   font-weight: 700;
 }
 
+.service-purchase-price small {
+  display: block;
+  margin-top: 2px;
+  color: #496177;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .service-legal-check {
   display: flex;
   gap: 9px;

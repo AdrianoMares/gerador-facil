@@ -35,7 +35,26 @@ function updateCanonical(canonical) {
   link.setAttribute('href', canonical);
 }
 
-export function Seo({ title, description = defaultDescription, canonical, noindex }) {
+function updateStructuredData(structuredData) {
+  const selector = 'script[data-resodi-structured-data="true"]';
+  let script = document.querySelector(selector);
+
+  if (!structuredData) {
+    script?.remove();
+    return;
+  }
+
+  if (!script) {
+    script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.dataset.resodiStructuredData = 'true';
+    document.head.append(script);
+  }
+
+  script.textContent = JSON.stringify(structuredData).replace(/</g, '\\u003c');
+}
+
+export function Seo({ title, description = defaultDescription, canonical, noindex, structuredData }) {
   useEffect(() => {
     const pageTitle = title ? `${title} | Resodi` : defaultTitle;
 
@@ -46,8 +65,9 @@ export function Seo({ title, description = defaultDescription, canonical, noinde
     updateMeta('meta[name="twitter:title"]', pageTitle);
     updateMeta('meta[name="twitter:description"]', description);
     updateCanonical(canonical);
+    updateStructuredData(structuredData);
     if (typeof noindex === 'boolean') updateOrCreateMeta('robots', noindex ? 'noindex, follow' : 'index, follow');
-  }, [title, description, canonical, noindex]);
+  }, [title, description, canonical, noindex, structuredData]);
 
   return null;
 }
