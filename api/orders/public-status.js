@@ -5,6 +5,11 @@ import { reconcilePagBankPayment } from '../_pagbankReconciliation.js';
 
 const MAX_BODY_BYTES = 4 * 1024;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const OFFICIAL_BOLETO_HOSTS = new Set([
+  'boleto.pagseguro.com.br',
+  'boleto.sandbox.pagseguro.com.br',
+  'boleto.digital-payments.pagseguro.com'
+]);
 
 function backendClient(createClientImpl, env) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
@@ -26,7 +31,7 @@ function safeBoletoUrl(value) {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'boleto.pagseguro.com.br'
+    return url.protocol === 'https:' && OFFICIAL_BOLETO_HOSTS.has(url.hostname)
       && url.pathname.endsWith('.pdf') ? url.toString() : null;
   } catch {
     return null;
