@@ -18,6 +18,29 @@
   font-weight: 600;
 }
 
+.service-draft-hero-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.service-draft-hero-button:disabled {
+  opacity: 0.82;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.service-cpf-alert {
+  border: 1px solid #b9d9ca;
+  border-left: 5px solid #2e9e6f;
+  border-radius: 14px;
+  padding: clamp(24px, 5vw, 34px);
+  background: #f4fbf8;
+}
+
+.service-cpf-alert h2 {
+  color: #163b63;
+}
+
 .service-seo-figure {
   margin: 30px 0 0;
 }
