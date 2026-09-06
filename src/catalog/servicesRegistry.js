@@ -24,13 +24,13 @@ export const serviceCategories = [
         category: 'Imposto de Renda',
         categorySlug: 'imposto-de-renda',
         path: '/servicos/imposto-de-renda/malha-fina',
-        description: 'Análise de pendências e auxílio na regularização da declaração de Imposto de Renda retida na Malha Fina.',
+        description: 'Regularização de pendências do Imposto de Renda, incluindo CPF Pendente de Regularização, declaração não entregue e declaração retida na Malha Fina.',
         priceCents: 10000,
         priceSuffix: 'por ano/declaração',
         status: 'draft',
         seo: {
-          title: 'Malha Fina do Imposto de Renda: Análise e Regularização',
-          description: 'Caiu na Malha Fina do Imposto de Renda? A Resodi analisa as pendências e auxilia na retificação, comprovação e regularização da declaração.'
+          title: 'Malha Fina e CPF Pendente de Regularização | Resodi',
+          description: 'CPF Pendente de Regularização, Erro 04 ou declaração na Malha Fina? A Resodi identifica a pendência do IR e auxilia na regularização.'
         },
         checkout: {
           productCode: 'malha_fina_ir'
@@ -38,71 +38,74 @@ export const serviceCategories = [
         detail: {
           eyebrow: 'Imposto de Renda',
           heroTitle: 'Malha Fina do Imposto de Renda',
-          intro: 'Caiu na malha fina? A Resodi analisa as pendências da sua declaração, identifica o que precisa ser corrigido ou comprovado e auxilia na regularização do seu Imposto de Renda.',
-          purchaseTitle: 'Análise e Regularização da Malha Fina',
-          purchaseDescription: 'Atendimento online para análise de uma declaração referente a um exercício.',
+          intro: 'CPF Pendente de Regularização, Erro 04 ou declaração com pendências? A Resodi identifica a origem do problema e auxilia na regularização do seu Imposto de Renda, seja por declaração não entregue, informação divergente ou retenção para análise.',
+          purchaseTitle: 'Regularização de Malha Fina e Pendências do IR',
+          purchaseDescription: 'Atendimento online para identificar e regularizar a pendência de uma declaração referente a um exercício.',
           sections: [
             {
-              title: 'Caiu na malha fina? Entenda o que aconteceu',
+              title: 'CPF Pendente de Regularização, Erro 04 ou Malha Fina?',
               paragraphs: [
-                'Quando uma declaração de Imposto de Renda é enviada, a Receita Federal cruza os dados informados pelo contribuinte com informações recebidas de empresas, instituições financeiras, planos de saúde e outras fontes.',
-                'Quando são encontradas divergências, inconsistências ou informações que precisam de comprovação, a declaração pode ficar retida para uma análise mais detalhada — situação conhecida como malha fiscal ou malha fina.',
-                'Cair na malha fina não significa necessariamente que toda a declaração esteja errada. Dependendo da pendência, pode ser necessário corrigir uma informação ou apresentar documentos que comprovem o que foi declarado.'
+                'Muitas pessoas descobrem que existe um problema no Imposto de Renda quando consultam o CPF e encontram a situação Pendente de Regularização ou o chamado Erro 04 em algumas consultas. Outras percebem a pendência ao verificar que uma declaração enviada ficou retida para análise.',
+                'Para fins deste serviço, a Resodi trata essas situações em uma única frente de atendimento: Malha Fina e Regularização do Imposto de Renda. Primeiro identificamos qual declaração ou exercício está causando a pendência e depois aplicamos o procedimento adequado ao caso.',
+                'A origem pode ser uma declaração obrigatória que não foi entregue, uma declaração transmitida com dados divergentes ou uma declaração que precisa de correção ou comprovação. O importante é identificar a causa antes de tomar qualquer medida.'
               ],
               image: {
                 src: '/images/servicos/malha-fina/como-funciona-malha-fina-imposto-de-renda.svg',
-                alt: 'Como funciona a Malha Fina do Imposto de Renda'
+                alt: 'Como funciona a Malha Fina e a regularização de pendências do Imposto de Renda'
               }
             },
             {
-              title: 'Como saber se caiu na malha fina?',
+              title: 'Como saber se existe pendência no Imposto de Renda?',
               paragraphs: [
-                'A situação da declaração pode ser consultada no serviço Meu Imposto de Renda. Quando existem pendências de malha, o sistema permite identificar os pontos que fizeram a declaração ficar retida para análise.',
-                'Se você encontrou uma pendência e não sabe como resolver, a Resodi pode analisar o caso e orientar o procedimento adequado para aquela declaração.'
+                'A pendência pode aparecer em uma consulta da situação cadastral do CPF, com a indicação Pendente de Regularização, ou nos serviços do Meu Imposto de Renda, onde é possível verificar declarações não entregues, pendências e situações que exigem atenção.',
+                'Você não precisa saber exatamente qual é o problema antes de contratar. A análise da Resodi começa justamente pela identificação da declaração ou exercício que precisa ser regularizado.'
               ],
               cta: {
-                title: 'Sua declaração está com pendência?',
-                text: 'Contrate a análise da Malha Fina e descubra quais são os próximos passos para regularizar a declaração.',
+                title: 'Seu CPF está Pendente de Regularização?',
+                text: 'Contrate a análise e nós identificamos qual pendência do Imposto de Renda precisa ser resolvida.',
                 buttonLabel: 'Contratar análise'
               }
             },
             {
-              title: 'Por que uma declaração pode cair na malha fina?',
-              paragraphs: ['Existem diferentes motivos para uma declaração ficar retida. Entre as situações que podem gerar pendência estão:'],
+              title: 'Situações que este serviço pode atender',
+              paragraphs: ['A regularização pode envolver diferentes situações relacionadas ao Imposto de Renda. Entre as mais comuns estão:'],
               bullets: [
-                'Divergências entre rendimentos declarados e informações de fontes pagadoras.',
+                'Declaração de Imposto de Renda obrigatória que não foi entregue.',
+                'Declaração entregue em atraso ou necessidade de regularizar um exercício anterior.',
+                'CPF com situação Pendente de Regularização relacionada ao Imposto de Renda.',
+                'Declaração enviada com divergências entre rendimentos e informações de fontes pagadoras.',
                 'Omissão ou diferença de valores de rendimentos.',
                 'Despesas médicas e outras deduções que precisam de conferência ou comprovação.',
-                'Informações relacionadas a dependentes.',
-                'Pensão alimentícia declarada em desacordo com as regras aplicáveis.',
+                'Informações relacionadas a dependentes ou pensão alimentícia.',
                 'Dados divergentes enviados por empresas, bancos, planos de saúde ou outras fontes.',
                 'Erros de preenchimento ou informações incompletas na declaração.',
-                'Necessidade de apresentação de documentos que comprovem informações declaradas.'
+                'Necessidade de retificação ou apresentação de documentos para comprovar informações declaradas.'
               ]
             },
             {
-              title: 'Como sair da malha fina?',
+              title: 'Como sair da Malha Fina ou regularizar o CPF pendente?',
               paragraphs: [
-                'A solução depende do motivo da pendência. Quando existe erro, omissão ou informação incompleta, pode ser possível transmitir uma declaração retificadora com os dados corretos.',
-                'Quando as informações declaradas estão corretas, pode ser necessário reunir e apresentar documentos que comprovem os dados informados. Em situações mais complexas, o procedimento pode exigir uma análise específica antes de qualquer medida.',
-                'A Resodi avalia a pendência apresentada e auxilia no caminho aplicável ao caso, sem prometer prazo ou resultado que dependa da análise da Receita Federal.'
+                'O procedimento depende da origem da pendência. Se a obrigação não foi entregue, pode ser necessário preparar e transmitir a declaração que está faltando. Se a declaração já foi enviada, pode ser necessário corrigir informações por meio de uma declaração retificadora.',
+                'Quando os dados declarados estão corretos, a solução pode envolver a reunião e apresentação de documentos que comprovem as informações. Em situações mais complexas, o caso pode exigir uma análise específica antes de qualquer alteração.',
+                'A Resodi identifica o caminho aplicável e auxilia na regularização correspondente ao exercício contratado, sem prometer prazo ou resultado que dependa da análise da Receita Federal.'
               ],
               image: {
                 src: '/images/servicos/malha-fina/como-sair-malha-fina-regularizar-imposto-de-renda.svg',
-                alt: 'Como sair da Malha Fina e regularizar o Imposto de Renda'
+                alt: 'Como sair da Malha Fina e regularizar CPF Pendente de Regularização'
               },
               cta: {
-                title: 'Precisa regularizar sua declaração?',
-                text: 'A análise custa R$ 100,00 por ano/declaração e inclui o atendimento necessário para identificar o procedimento aplicável.',
+                title: 'Precisa regularizar o Imposto de Renda?',
+                text: 'O atendimento custa R$ 100,00 por ano/declaração e inclui a análise necessária para identificar o procedimento aplicável.',
                 buttonLabel: 'Contratar serviço'
               }
             }
           ],
           included: [
-            'Análise inicial da pendência apresentada na Malha Fina.',
+            'Análise inicial da pendência relacionada ao Imposto de Renda.',
+            'Identificação do exercício ou declaração que precisa ser regularizado.',
             'Conferência das informações fornecidas pelo cliente.',
-            'Identificação do possível motivo da retenção da declaração.',
             'Orientação sobre os documentos e informações necessários ao caso.',
+            'Preparação e transmissão de declaração em atraso, quando aplicável ao exercício contratado.',
             'Preparação de declaração retificadora, quando aplicável.',
             'Auxílio no procedimento de correção da pendência, quando aplicável.',
             'Auxílio na apresentação de documentos, quando o procedimento for aplicável ao caso.',
@@ -119,20 +122,21 @@ export const serviceCategories = [
             'O cliente contrata o serviço referente a um ano/declaração.',
             'O pagamento é confirmado.',
             'A Resodi entra em contato pelos dados informados na contratação.',
-            'São solicitadas as informações necessárias para identificar e analisar a pendência.',
-            'A Resodi realiza a correção, orientação ou preparação de documentos aplicável ao caso.',
+            'São solicitadas as informações necessárias para identificar a origem da pendência.',
+            'A Resodi realiza a declaração em atraso, retificação, orientação ou preparação de documentos aplicável ao caso.',
             'O cliente recebe o retorno sobre o procedimento realizado e os próximos passos, quando existirem.'
           ],
           afterStepsCta: {
-            title: 'Quer ajuda para resolver a Malha Fina?',
-            text: 'Faça a contratação online e receba as instruções para iniciarmos a análise da sua declaração.',
+            title: 'Quer regularizar a pendência do seu Imposto de Renda?',
+            text: 'Faça a contratação online e receba as instruções para iniciarmos a análise da sua situação.',
             buttonLabel: 'Contratar agora'
           },
           requestedInformation: [
-            'Cópia da declaração de Imposto de Renda referente ao exercício analisado.',
+            'Print ou informação da situação Pendente de Regularização apresentada na consulta do CPF, quando disponível.',
+            'Informação ou print da pendência apresentada no Meu Imposto de Renda, quando disponível.',
+            'Cópia da declaração de Imposto de Renda referente ao exercício analisado, quando já tiver sido entregue.',
             'Recibo de entrega da declaração, quando disponível.',
-            'Informação ou print da pendência apresentada no Meu Imposto de Renda.',
-            'Informes de rendimentos relacionados à pendência.',
+            'Informes de rendimentos relacionados ao exercício.',
             'Comprovantes de despesas, deduções ou pagamentos relacionados à divergência.',
             'Documentos de dependentes ou outras informações relacionadas ao caso, quando necessários.',
             'Outros documentos ou informações identificados durante a análise.'
@@ -140,53 +144,62 @@ export const serviceCategories = [
           transparency: {
             paragraphs: [
               'A Resodi é uma empresa privada de serviços digitais e não possui vínculo com a Receita Federal, Gov.br ou outros órgãos públicos.',
-              'A consulta de pendências, a retificação da declaração e outros procedimentos oficiais também podem ser realizados diretamente pelos canais disponibilizados pelo Governo. O valor cobrado pela Resodi corresponde ao atendimento, análise, orientação e execução dos procedimentos contratados para o cliente.'
+              'A consulta de pendências, a entrega de declarações, a retificação e outros procedimentos oficiais também podem ser realizados diretamente pelos canais disponibilizados pelo Governo. O valor cobrado pela Resodi corresponde ao atendimento, análise, orientação e execução dos procedimentos contratados para o cliente.'
             ]
           },
           seoSections: [
             {
-              title: 'Declaração retida na malha fina: o que fazer?',
+              title: 'CPF Pendente de Regularização: o que fazer?',
               paragraphs: [
-                'O primeiro passo é identificar exatamente qual pendência foi apontada. A declaração pode ter sido separada para análise por divergência de dados, informação incompleta ou necessidade de comprovação.',
-                'Depois de identificar o motivo, é possível avaliar se o caminho é corrigir a declaração, apresentar documentos ou aguardar uma etapa de processamento. Enquanto a declaração permanece retida na malha, eventual restituição vinculada a ela pode ficar aguardando a conclusão da análise.'
+                'Ao encontrar o CPF com a situação Pendente de Regularização, o primeiro passo é identificar qual obrigação ou declaração do Imposto de Renda está relacionada à pendência. Em muitos casos, o contribuinte só descobre o problema ao consultar o próprio CPF.',
+                'Depois de identificar o exercício, é possível verificar se existe declaração não entregue, informação que precisa ser corrigida ou outra pendência relacionada ao processamento do Imposto de Renda.'
               ],
               cta: {
-                title: 'Não sabe o que fazer depois de cair na malha fina?',
-                text: 'A Resodi analisa a pendência e orienta o procedimento aplicável à sua declaração.',
-                buttonLabel: 'Solicitar análise'
+                title: 'Encontrou CPF Pendente de Regularização?',
+                text: 'A Resodi identifica a origem da pendência e auxilia na regularização do exercício correspondente.',
+                buttonLabel: 'Regularizar CPF'
               }
             },
             {
-              title: 'Posso corrigir uma declaração que caiu na malha fina?',
+              title: 'Declaração retida na Malha Fina: o que fazer?',
               paragraphs: [
-                'Em muitos casos, sim. Quando a pendência decorre de erro, omissão ou informação incorreta e ainda é permitido retificar a declaração, uma declaração retificadora pode ser utilizada para corrigir os dados.',
-                'A possibilidade de retificação depende da situação concreta da declaração. Por isso, a análise da pendência deve ocorrer antes de qualquer alteração.'
+                'Quando uma declaração já foi entregue e apresenta divergência, informação incompleta ou necessidade de comprovação, é preciso identificar exatamente qual ponto está impedindo o processamento normal.',
+                'Depois dessa análise, o caminho pode ser corrigir a declaração, apresentar documentos ou acompanhar uma etapa de processamento. Enquanto a declaração permanece retida, eventual restituição vinculada a ela pode ficar aguardando a conclusão da análise.'
               ]
             },
             {
-              title: 'Minha declaração está correta. E agora?',
+              title: 'Não entreguei o Imposto de Renda. Este serviço também atende?',
               paragraphs: [
-                'Se os dados informados estão corretos, a solução pode não ser uma retificação. Dependendo da pendência, pode ser necessário comprovar as informações apresentadas com documentos e seguir o procedimento indicado pela Receita Federal.',
-                'O objetivo da análise é justamente identificar qual caminho faz sentido antes de alterar uma declaração que pode estar correta.'
+                'Sim. Para fins do atendimento da Resodi, a regularização de uma declaração obrigatória não entregue faz parte da mesma frente de Malha Fina e Regularização do Imposto de Renda.',
+                'Depois de identificar qual exercício está pendente, a Resodi pode preparar e transmitir a declaração correspondente, desde que o caso esteja dentro do escopo de uma regularização comum.'
+              ]
+            },
+            {
+              title: 'Minha declaração foi entregue, mas tem dados divergentes. E agora?',
+              paragraphs: [
+                'Quando a declaração já foi transmitida, a análise verifica se existe erro, omissão ou diferença de informação. Se houver algo a corrigir e a situação permitir, uma declaração retificadora pode ser utilizada.',
+                'Se os dados estiverem corretos, pode ser necessário comprovar as informações apresentadas com documentos e seguir o procedimento indicado para aquela pendência.'
               ]
             }
           ],
           faq: [
-            ['O que é a Malha Fina do Imposto de Renda?', 'É a análise mais detalhada de uma declaração que apresentou divergência, inconsistência ou informação que precisa ser verificada ou comprovada.'],
-            ['Como saber se caí na malha fina?', 'A situação da declaração e as pendências podem ser consultadas no serviço Meu Imposto de Renda.'],
-            ['Caí na malha fina. O que fazer?', 'Primeiro é necessário identificar o motivo da pendência. Dependendo do caso, pode ser necessário retificar a declaração, apresentar documentos ou seguir outro procedimento indicado pela Receita.'],
-            ['Como sair da malha fina?', 'Não existe uma única solução. O procedimento depende da pendência encontrada e pode envolver correção da declaração, comprovação de informações ou outra providência aplicável.'],
-            ['Quanto tempo demora para sair da malha fina?', 'Não há um prazo que a Resodi possa garantir. O processamento e a decisão final dependem da Receita Federal e da situação específica da declaração.'],
-            ['Posso receber a restituição enquanto a declaração está na malha fina?', 'A restituição relacionada à declaração pode ficar aguardando enquanto a análise da malha não for concluída.'],
-            ['É possível fazer uma declaração retificadora?', 'Em muitos casos, sim, quando existe erro ou omissão e a situação ainda permite a retificação. Antes de alterar a declaração, é importante identificar a pendência.'],
+            ['O que é a Malha Fina do Imposto de Renda?', 'É uma expressão usada para situações em que existem pendências relacionadas à declaração do Imposto de Renda. Na Resodi, o serviço de Malha Fina também atende pendências de regularização ligadas a declarações não entregues ou com divergências.'],
+            ['CPF Pendente de Regularização é atendido por este serviço?', 'Sim. Para fins do serviço da Resodi, CPF Pendente de Regularização relacionado ao Imposto de Renda entra na mesma frente de Malha Fina e Regularização do IR.'],
+            ['O que significa Erro 04 na consulta do CPF?', 'O chamado Erro 04 aparece em algumas consultas associado a uma pendência de regularização. A Resodi verifica qual declaração ou exercício do Imposto de Renda está relacionado ao problema antes de realizar qualquer procedimento.'],
+            ['Não entreguei a declaração do Imposto de Renda. Posso contratar?', 'Sim. Se a pendência estiver relacionada a uma declaração obrigatória não entregue, o serviço pode incluir a preparação e transmissão do exercício contratado.'],
+            ['Entreguei a declaração, mas existem dados divergentes. Este serviço atende?', 'Sim. A análise pode identificar a necessidade de retificação, correção de informação ou apresentação de documentos, conforme o caso.'],
+            ['Como saber qual ano está pendente?', 'A análise verifica as informações disponíveis na consulta do CPF e nos serviços relacionados ao Imposto de Renda para identificar qual exercício precisa de atenção.'],
+            ['Como sair da Malha Fina?', 'Não existe uma única solução. O procedimento pode envolver entrega de declaração faltante, retificação, comprovação de informações ou outra providência aplicável ao exercício.'],
+            ['Quanto tempo demora para regularizar?', 'Não há um prazo que a Resodi possa garantir. O processamento e a decisão final dependem da Receita Federal e da situação específica da declaração.'],
+            ['Posso receber a restituição enquanto a declaração está na Malha Fina?', 'A restituição relacionada à declaração pode ficar aguardando enquanto a análise da pendência não for concluída.'],
             ['O valor de R$ 100,00 cobre mais de um ano?', 'Não. O valor de R$ 100,00 corresponde à análise e ao atendimento de uma declaração referente a um exercício. Se houver pendências em mais de um ano, cada declaração corresponde a uma contratação.'],
-            ['A Resodi garante que minha declaração sairá da malha fina?', 'Não. A Resodi presta o serviço de análise, orientação e execução dos procedimentos aplicáveis. A análise e o processamento final da declaração são de responsabilidade da Receita Federal.'],
+            ['A Resodi garante que meu CPF será regularizado?', 'Não. A Resodi presta o serviço de análise, orientação e execução dos procedimentos aplicáveis. O processamento final e a situação oficial dependem da Receita Federal.'],
             ['A Resodi precisa da minha senha Gov.br?', 'A Resodi não armazena senhas nem códigos de autenticação. Quando um acesso autenticado for necessário, o procedimento será orientado durante o atendimento.'],
             ['A Resodi é da Receita Federal?', 'Não. A Resodi é uma empresa privada de serviços digitais e não possui vínculo com a Receita Federal ou outro órgão público.']
           ],
           finalCta: {
-            title: 'Resolva a pendência da sua declaração com orientação',
-            text: 'Contrate a análise da Malha Fina por R$ 100,00 por ano/declaração e receba as instruções para começarmos o atendimento.',
+            title: 'Regularize sua pendência do Imposto de Renda com orientação',
+            text: 'Contrate o serviço por R$ 100,00 por ano/declaração e receba as instruções para começarmos a análise da sua situação.',
             buttonLabel: 'Contratar serviço'
           }
         }
