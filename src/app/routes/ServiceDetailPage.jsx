@@ -86,10 +86,56 @@ export function ServiceDetailPage() {
     'A Resodi é uma empresa privada de serviços digitais e não possui vínculo com a Receita Federal, Gov.br ou outros órgãos públicos.',
     'A transmissão da DASN-SIMEI pode ser realizada gratuitamente pelos canais oficiais do Governo. O valor cobrado pela Resodi corresponde ao atendimento, orientação, preparação e execução do serviço para o cliente.'
   ];
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Service',
+        name: service.name,
+        description: service.seo.description,
+        url: canonical,
+        provider: {
+          '@type': 'Organization',
+          name: siteIdentity.brand,
+          url: siteIdentity.domain
+        },
+        areaServed: {
+          '@type': 'Country',
+          name: 'Brasil'
+        },
+        ...(service.status === 'active' && hasPrice ? {
+          offers: {
+            '@type': 'Offer',
+            priceCurrency: 'BRL',
+            price: (service.priceCents / 100).toFixed(2),
+            availability: 'https://schema.org/InStock',
+            url: canonical
+          }
+        } : {})
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: detail.faq.map(([question, answer]) => ({
+          '@type': 'Question',
+          name: question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: answer
+          }
+        }))
+      }
+    ]
+  };
 
   return (
     <>
-      <Seo title={service.seo.title} description={service.seo.description} canonical={canonical} noindex={isDraft} />
+      <Seo
+        title={service.seo.title}
+        description={service.seo.description}
+        canonical={canonical}
+        noindex={isDraft}
+        structuredData={structuredData}
+      />
       <div className="container service-breadcrumb" aria-label="Navegação estrutural">
         <Link to="/servicos">Serviços</Link><span aria-hidden="true">/</span><span>{service.category}</span><span aria-hidden="true">/</span><span aria-current="page">{service.name}</span>
       </div>
