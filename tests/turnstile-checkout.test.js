@@ -10,16 +10,55 @@ test('token válido é confirmado no Siteverify com action e IP esperados', asyn
   let request;
   const result = await verifyTurnstileToken(token, {
     env: { TURNSTILE_SECRET_KEY: secret },
-    request: { headers: { 'x-forwarded-for': '203.0.113.10, 10.0.0.1' } },
+    request: {
+      headers: {
+        'x-forwarded-for': '203.0.113.10, 10.0.0.1',
+        'x-forwarded-host': 'TEST.RESODI.COM.BR:443',
+        host: 'wrong.example.com'
+      }
+    },
     fetchImpl: async (url, options) => {
       request = { url, options, body: JSON.parse(options.body) };
-      return { ok: true, async json() { return { success: true, action: 'checkout_payment' }; } };
+      return { ok: true, async json() {
+        return { success: true, action: 'checkout_payment', hostname: 'test.resodi.com.br' };
+      } };
     }
   });
   assert.equal(result, true);
   assert.equal(request.url, 'https://challenges.cloudflare.com/turnstile/v0/siteverify');
   assert.deepEqual(request.body, { secret, response: token, remoteip: '203.0.113.10' });
   assert.equal(request.options.signal instanceof AbortSignal, true);
+});
+
+test('hostname correto é aceito para os hosts oficiais, removendo porta e ignorando caixa', async () => {
+  for (const hostname of ['test.resodi.com.br', 'resodi.com.br', 'www.resodi.com.br']) {
+    const result = await verifyTurnstileToken(token, {
+      env: { TURNSTILE_SECRET_KEY: secret },
+      request: { headers: { host: `${hostname.toUpperCase()}:443` } },
+      fetchImpl: async () => ({
+        ok: true,
+        async json() { return { success: true, action: 'checkout_payment', hostname: hostname.toUpperCase() }; }
+      })
+    });
+    assert.equal(result, true);
+  }
+});
+
+test('hostname divergente, ausente ou inválido falha fechado', async () => {
+  for (const [request, hostname] of [
+    [{ headers: { host: 'test.resodi.com.br' } }, 'resodi.com.br'],
+    [{ headers: { host: 'test.resodi.com.br' } }, undefined],
+    [{ headers: { host: 'test.resodi.com.br' } }, 'test.resodi.com.br:443'],
+    [{ headers: { host: 'test.resodi.com.br/path' } }, 'test.resodi.com.br']
+  ]) {
+    await assert.rejects(verifyTurnstileToken(token, {
+      env: { TURNSTILE_SECRET_KEY: secret }, request,
+      fetchImpl: async () => ({
+        ok: true,
+        async json() { return { success: true, action: 'checkout_payment', hostname }; }
+      })
+    }), /TURNSTILE_VALIDATION_FAILED/);
+  }
 });
 
 test('token ausente, vazio ou acima do limite falha antes da rede', async () => {

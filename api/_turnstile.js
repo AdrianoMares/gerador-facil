@@ -6,11 +6,50 @@ function validationError(code) {
   return new Error(code);
 }
 
+function requestHeader(request, name) {
+  const headers = request?.headers;
+  if (!headers) return '';
+  if (typeof headers.get === 'function') return headers.get(name) || '';
+  return headers[name] || headers[name.toLowerCase()] || '';
+}
+
+function firstHeaderValue(value) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return typeof candidate === 'string' ? candidate.split(',')[0].trim() : '';
+}
+
 function clientIp(request) {
-  const forwarded = request?.headers?.['x-forwarded-for'];
-  const candidate = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  const candidate = firstHeaderValue(requestHeader(request, 'x-forwarded-for'));
   const value = typeof candidate === 'string' ? candidate.split(',')[0].trim() : '';
   return value && value.length <= 64 && !/[\r\n]/.test(value) ? value : null;
+}
+
+function normalizeRequestHostname(value) {
+  const candidate = firstHeaderValue(value);
+  if (!candidate || candidate.length > 253 || /[\s\r\n/@?#]/.test(candidate)) return null;
+  const match = candidate.match(/^([^:]+)(?::(\d{1,5}))?$/);
+  if (!match || (match[2] && Number(match[2]) > 65_535)) return null;
+  const hostname = match[1].toLowerCase();
+  if (!hostname || hostname.endsWith('.')
+    || !hostname.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) {
+    return null;
+  }
+  return hostname;
+}
+
+function normalizeCloudflareHostname(value) {
+  if (typeof value !== 'string' || value.length > 253 || /[\s\r\n/:@?#]/.test(value)) return null;
+  const hostname = value.toLowerCase();
+  if (!hostname || hostname.endsWith('.')
+    || !hostname.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) {
+    return null;
+  }
+  return hostname;
+}
+
+function requestHostname(request) {
+  const forwardedHost = requestHeader(request, 'x-forwarded-host');
+  return normalizeRequestHostname(forwardedHost || requestHeader(request, 'host'));
 }
 
 export async function verifyTurnstileToken(token, {
@@ -53,7 +92,12 @@ export async function verifyTurnstileToken(token, {
       throw validationError('SECURITY_VALIDATION_UNAVAILABLE');
     }
 
-    if (result?.success === true && (!expectedAction || result.action === expectedAction)) return true;
+    const expectedHostname = requestHostname(request);
+    const actualHostname = normalizeCloudflareHostname(result?.hostname);
+    if (result?.success === true
+      && (!expectedAction || result.action === expectedAction)
+      && expectedHostname
+      && actualHostname === expectedHostname) return true;
     if (Array.isArray(result?.['error-codes']) && result['error-codes'].includes('internal-error')) {
       throw validationError('SECURITY_VALIDATION_UNAVAILABLE');
     }
