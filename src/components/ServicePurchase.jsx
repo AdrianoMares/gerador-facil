@@ -54,7 +54,7 @@ export function ServicePurchase({ service }) {
       <span>Contratação online</span>
       <strong>Pronto para contratar?</strong>
       {hasPrice && <div className="service-purchase-price">{formatCurrencyBRL(service.priceCents / 100)}</div>}
-      <p>Você seguirá para o checkout seguro, com Pix ou cartão de crédito.</p>
+      <p>Você seguirá para o checkout seguro, com Pix, cartão de crédito ou boleto.</p>
 
       <label className="service-legal-check">
         <input

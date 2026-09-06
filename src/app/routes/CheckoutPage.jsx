@@ -7,6 +7,7 @@ import {
   cardBinFromNumber,
   checkPagBankCardStatus,
   checkPagBankPixStatus,
+  createPagBankBoleto,
   createPagBankCard,
   createPagBankPix,
   getPagBankCardInstallments,
@@ -37,7 +38,7 @@ async function fetchCheckoutState(orderId) {
   const [{ data, error }, { data: entitlements, error: entitlementError }] = await Promise.all([
     supabase
       .from('orders')
-      .select('id, status, currency, subtotal_cents, total_cents, order_items(product_name, product_description, quantity, unit_price_cents, total_price_cents, resource_id)')
+      .select('id, status, currency, subtotal_cents, total_cents, order_items(product_name, product_description, quantity, unit_price_cents, total_price_cents, resource_id, product:products(product_type, fulfillment_mode))')
       .eq('id', orderId)
       .maybeSingle(),
     supabase
@@ -61,6 +62,10 @@ export function CheckoutPage() {
   const [customer, setCustomer] = useState({ name: '', email: '', phone: '', taxId: '' });
   const [paymentMethod, setPaymentMethod] = useState('pix');
   const [pixState, setPixState] = useState({ loading: false, error: '', result: null, copied: false });
+  const [address, setAddress] = useState({
+    street: '', number: '', complement: '', locality: '', city: '', regionCode: '', postalCode: ''
+  });
+  const [boletoState, setBoletoState] = useState({ loading: false, error: '', result: null });
   const [holder, setHolder] = useState({ name: '', taxId: '' });
   const [sameHolderName, setSameHolderName] = useState(false);
   const [sameHolderTaxId, setSameHolderTaxId] = useState(false);
@@ -163,6 +168,9 @@ export function CheckoutPage() {
   }
 
   const items = state.order.order_items || [];
+  const isServiceOrder = items.length > 0 && items.every((item) => (
+    item.product?.product_type === 'service' && item.product?.fulfillment_mode === 'service_request'
+  ));
   const pending = state.order.status === 'pending_payment';
   const resourceId = items.find((item) => item.resource_id)?.resource_id;
   const canDownload = state.order.status === 'paid'
@@ -195,6 +203,11 @@ export function CheckoutPage() {
       setInstallmentsError('');
     }
     setCard((current) => ({ ...current, [name]: value }));
+  }
+
+  function handleAddressChange(event) {
+    const { name, value } = event.target;
+    setAddress((current) => ({ ...current, [name]: value }));
   }
 
   function handlePaymentMethodChange(event) {
@@ -277,6 +290,32 @@ export function CheckoutPage() {
     }
   }
 
+  async function handleCreateBoleto(event) {
+    event.preventDefault();
+    if (!isServiceOrder) return;
+    setBoletoState({ loading: true, error: '', result: null });
+    try {
+      const result = await createPagBankBoleto({
+        orderId: state.order.id,
+        customer: { name: customer.name, email: customer.email, taxId: customer.taxId },
+        address
+      });
+      setBoletoState({ loading: false, error: '', result });
+      globalThis.location.assign(result.publicUrl);
+    } catch (error) {
+      const messages = {
+        BOLETO_NOT_AVAILABLE: 'Boleto está disponível somente para serviços.',
+        BOLETO_CREATION_UNCERTAIN: 'Não foi possível confirmar a emissão. Aguarde antes de tentar novamente.',
+        PAGBANK_REJECTED: 'O PagBank não conseguiu emitir o boleto com esses dados.'
+      };
+      setBoletoState({
+        loading: false,
+        error: messages[error?.code] || 'Não foi possível gerar o boleto. Confira os dados e tente novamente.',
+        result: null
+      });
+    }
+  }
+
   async function handleCheckPayment() {
     setPaymentCheck({ checking: true, timedOut: false, error: '' });
     try {
@@ -319,6 +358,7 @@ export function CheckoutPage() {
             <legend>Forma de pagamento</legend>
             <label><input type="radio" name="paymentMethod" value="pix" checked={paymentMethod === 'pix'} onChange={handlePaymentMethodChange} /> Pix</label>
             <label><input type="radio" name="paymentMethod" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={handlePaymentMethodChange} /> Cartão de crédito</label>
+            {isServiceOrder && <label><input type="radio" name="paymentMethod" value="boleto" checked={paymentMethod === 'boleto'} onChange={handlePaymentMethodChange} /> Boleto</label>}
           </fieldset>
           {paymentMethod === 'pix' && !pixState.result && (
             <form className="checkout-pix-form" onSubmit={handleCreatePix}>
@@ -445,6 +485,62 @@ export function CheckoutPage() {
               )}
               {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
               <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
+            </div>
+          )}
+          {paymentMethod === 'boleto' && isServiceOrder && !boletoState.result && (
+            <form className="checkout-boleto-form" onSubmit={handleCreateBoleto}>
+              <label className="form-field checkout-boleto-wide">
+                <span>Nome completo do pagador</span>
+                <input className="input" name="name" autoComplete="name" maxLength="30" value={customer.name} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>E-mail</span>
+                <input className="input" type="email" name="email" autoComplete="email" value={customer.email} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>CPF/CNPJ</span>
+                <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={customer.taxId} onChange={handleCustomerChange} required />
+              </label>
+              <label className="form-field">
+                <span>CEP</span>
+                <input className="input" name="postalCode" inputMode="numeric" autoComplete="postal-code" maxLength="9" value={address.postalCode} onChange={handleAddressChange} required />
+              </label>
+              <label className="form-field">
+                <span>UF</span>
+                <input className="input" name="regionCode" autoComplete="address-level1" maxLength="2" placeholder="SP" value={address.regionCode} onChange={handleAddressChange} required />
+              </label>
+              <label className="form-field checkout-boleto-wide">
+                <span>Rua</span>
+                <input className="input" name="street" autoComplete="address-line1" maxLength="160" value={address.street} onChange={handleAddressChange} required />
+              </label>
+              <label className="form-field">
+                <span>Número</span>
+                <input className="input" name="number" autoComplete="address-line2" maxLength="20" value={address.number} onChange={handleAddressChange} required />
+              </label>
+              <label className="form-field">
+                <span>Complemento (opcional)</span>
+                <input className="input" name="complement" maxLength="40" value={address.complement} onChange={handleAddressChange} />
+              </label>
+              <label className="form-field">
+                <span>Bairro</span>
+                <input className="input" name="locality" autoComplete="address-level3" maxLength="60" value={address.locality} onChange={handleAddressChange} required />
+              </label>
+              <label className="form-field">
+                <span>Cidade</span>
+                <input className="input" name="city" autoComplete="address-level2" maxLength="90" value={address.city} onChange={handleAddressChange} required />
+              </label>
+              <p className="checkout-boleto-wide">Vencimento em 3 dias corridos. Não há taxa adicional para pagamento por boleto.</p>
+              <button className="button checkout-boleto-wide" type="submit" disabled={boletoState.loading}>
+                {boletoState.loading ? 'Gerando boleto...' : 'Gerar boleto'}
+              </button>
+              {boletoState.error && <p className="checkout-pix-error checkout-boleto-wide" role="alert">{boletoState.error}</p>}
+            </form>
+          )}
+          {paymentMethod === 'boleto' && boletoState.result && (
+            <div className="checkout-pix-result">
+              <p><strong>Boleto gerado.</strong> Abrindo o resumo seguro do pedido...</p>
+              <p>Também enviamos o link de acompanhamento para o e-mail cadastrado.</p>
+              <a className="button" href={boletoState.result.publicUrl}>Acessar meu pedido</a>
             </div>
           )}
         </section>
