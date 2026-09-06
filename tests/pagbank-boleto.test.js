@@ -5,7 +5,7 @@ import test from 'node:test';
 import {
   boletoDueDate,
   buildPagBankBoletoPayload,
-  createPagBankBoletoHandler,
+  createPagBankBoletoHandler as createRawPagBankBoletoHandler,
   validatePagBankBoletoInput,
   validatePagBankBoletoResponse
 } from '../api/payments/pagbank/boleto/create.js';
@@ -30,8 +30,13 @@ const env = {
   RESEND_API_KEY: 'resend-secret',
   RESODI_PUBLIC_URL: 'https://www.resodi.com.br'
 };
+const createPagBankBoletoHandler = (options = {}) => createRawPagBankBoletoHandler({
+  ...options,
+  verifyTurnstileImpl: options.verifyTurnstileImpl || (async () => true)
+});
 const validBody = {
   orderId,
+  turnstileToken: 'turnstile-valid-token',
   customer: { name: 'Maria da Silva', email: 'maria@example.com', taxId: '529.982.247-25' },
   address: {
     street: 'Rua das Flores', number: '123', complement: 'Apto 4', locality: 'Centro',
@@ -255,6 +260,28 @@ test('criação e retry são idempotentes no PagBank e tokens ficam somente como
   assert.equal(fixture.calls.tokenHashes.every((hash) => /^[0-9a-f]{64}$/.test(hash)), true);
   assert.equal(fixture.calls.tokenHashes.some((hash) => first.body.publicUrl.includes(hash)), false);
   assert.notEqual(first.body.publicUrl, second.body.publicUrl);
+  assert.equal(JSON.stringify(fixture.calls.rpc).includes(validBody.turnstileToken), false);
+});
+
+test('boleto sem token é rejeitado antes de preparar ou chamar o PagBank', async () => {
+  const fixture = creationFixture();
+  const response = responseRecorder();
+  const body = { ...validBody };
+  delete body.turnstileToken;
+  await createRawPagBankBoletoHandler({
+    createClientImpl: fixture.createClientImpl,
+    fetchImpl: fixture.fetchImpl,
+    env,
+    randomBytesImpl: () => Buffer.alloc(32, 1),
+    logError: () => {},
+    verifyTurnstileImpl: async (tokenValue) => {
+      assert.equal(tokenValue, undefined);
+      throw new Error('TURNSTILE_VALIDATION_FAILED');
+    }
+  })({ method: 'POST', headers: { authorization: 'Bearer jwt' }, body }, response);
+  assert.equal(response.statusCode, 403);
+  assert.equal(fixture.calls.rpc.length, 0);
+  assert.equal(fixture.calls.post, 0);
 });
 
 test('endpoint proíbe boleto para ferramenta/PDF antes de chamar o PagBank', async () => {

@@ -1,6 +1,6 @@
 import { getCommerceSession } from './commerce.js';
 
-export async function createPagBankPix({ orderId, customer }, {
+export async function createPagBankPix({ orderId, customer, turnstileToken }, {
   fetchImpl = fetch,
   getSession = getCommerceSession
 } = {}) {
@@ -17,7 +17,7 @@ export async function createPagBankPix({ orderId, customer }, {
       Authorization: `Bearer ${session.access_token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ orderId, customer })
+    body: JSON.stringify({ orderId, customer, turnstileToken })
   });
 
   let payload;
@@ -36,10 +36,10 @@ export async function createPagBankPix({ orderId, customer }, {
   return payload;
 }
 
-export async function createPagBankBoleto({ orderId, customer, address }, options = {}) {
+export async function createPagBankBoleto({ orderId, customer, address, turnstileToken }, options = {}) {
   const payload = await authenticatedRequest('/api/payments/pagbank/boleto/create', {
     method: 'POST',
-    body: JSON.stringify({ orderId, customer, address })
+    body: JSON.stringify({ orderId, customer, address, turnstileToken })
   }, options);
   if (payload?.environment !== 'sandbox' || payload?.providerStatus !== 'WAITING'
     || !payload?.boleto?.digitableLine || !payload?.boleto?.url || !payload?.publicUrl) {
@@ -127,7 +127,7 @@ function loadPagBankSdk(documentImpl = document) {
   });
 }
 
-export async function createPagBankCard({ orderId, customer, holder, card, installments }, options = {}) {
+export async function createPagBankCard({ orderId, customer, holder, card, installments, turnstileToken }, options = {}) {
   const cardBin = cardBinFromNumber(card.number);
   if (!cardBin) {
     const error = new Error('Dados do cartão inválidos.');
@@ -159,7 +159,8 @@ export async function createPagBankCard({ orderId, customer, holder, card, insta
       holder,
       encryptedCard: encrypted.encryptedCard,
       cardBin,
-      installments
+      installments,
+      turnstileToken
     })
   }, options);
 }

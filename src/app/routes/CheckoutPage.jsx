@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { Link, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { formatCurrencyBRL } from '../../utils/formatters';
@@ -16,9 +17,18 @@ import {
 } from '../../services/payments';
 
 const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
+const turnstileSiteKey = import.meta.env?.VITE_TURNSTILE_SITE_KEY;
 const paymentNoticeStyle = { borderColor: '#163B63', background: '#F4F6F8' };
 const successNoticeStyle = { borderColor: '#b9dfcf', background: '#edf7f2' };
 const successHeadingStyle = { color: '#247f59' };
+const turnstileOptions = {
+  action: 'checkout_payment',
+  appearance: 'interaction-only',
+  refreshExpired: 'auto',
+  retry: 'auto',
+  size: 'flexible',
+  theme: 'light'
+};
 
 const statusLabels = {
   pending_payment: 'Aguardando pagamento',
@@ -31,6 +41,27 @@ const statusLabels = {
 function formatCents(cents, currency) {
   if (currency !== 'BRL') return `${currency} ${((cents || 0) / 100).toFixed(2)}`;
   return formatCurrencyBRL((cents || 0) / 100);
+}
+
+function CheckoutSecurityVerification({ className = '', resetKey, token, onError, onExpire, onSuccess }) {
+  return (
+    <div className={`checkout-security ${className}`.trim()}>
+      <span className="checkout-security-label">Verificação de segurança</span>
+      {turnstileSiteKey ? (
+        <Turnstile
+          key={resetKey}
+          siteKey={turnstileSiteKey}
+          options={turnstileOptions}
+          onSuccess={onSuccess}
+          onError={onError}
+          onExpire={onExpire}
+        />
+      ) : (
+        <p className="checkout-pix-error" role="alert">A verificação de segurança está indisponível.</p>
+      )}
+      {token && <small role="status">Verificação concluída.</small>}
+    </div>
+  );
 }
 
 async function fetchCheckoutState(orderId) {
@@ -75,6 +106,9 @@ export function CheckoutPage() {
   const [selectedInstallments, setSelectedInstallments] = useState('');
   const [installmentsError, setInstallmentsError] = useState('');
   const [paymentCheck, setPaymentCheck] = useState({ checking: false, timedOut: false, error: '' });
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+  const [securityError, setSecurityError] = useState('');
 
   const loadOrder = useCallback(async () => {
     const nextState = await fetchCheckoutState(orderId);
@@ -213,6 +247,45 @@ export function CheckoutPage() {
   function handlePaymentMethodChange(event) {
     setPaymentMethod(event.target.value);
     setPaymentCheck({ checking: false, timedOut: false, error: '' });
+    setTurnstileToken('');
+    setSecurityError('');
+    setTurnstileResetKey((key) => key + 1);
+  }
+
+  function handleTurnstileSuccess(token) {
+    setTurnstileToken(token);
+    setSecurityError('');
+  }
+
+  function handleTurnstileError() {
+    setTurnstileToken('');
+    setSecurityError('Não foi possível concluir a verificação. Tente novamente.');
+  }
+
+  function handleTurnstileExpire() {
+    setTurnstileToken('');
+    setSecurityError('A verificação expirou. Aguarde uma nova verificação.');
+  }
+
+  function consumeTurnstileToken() {
+    const token = turnstileToken;
+    setTurnstileToken('');
+    return token;
+  }
+
+  function resetTurnstile() {
+    setTurnstileToken('');
+    setTurnstileResetKey((key) => key + 1);
+  }
+
+  function securityFailureMessage(error) {
+    if (error?.code === 'TURNSTILE_VALIDATION_FAILED') {
+      return 'A verificação expirou ou não pôde ser confirmada. Faça uma nova verificação.';
+    }
+    if (['SECURITY_VALIDATION_NOT_CONFIGURED', 'SECURITY_VALIDATION_UNAVAILABLE'].includes(error?.code)) {
+      return 'A verificação de segurança está indisponível no momento. Tente novamente mais tarde.';
+    }
+    return '';
   }
 
   function handleHolderChange(event) {
@@ -234,16 +307,25 @@ export function CheckoutPage() {
 
   async function handleCreatePix(event) {
     event.preventDefault();
+    const securityToken = consumeTurnstileToken();
+    if (!securityToken) {
+      setSecurityError('Conclua a verificação de segurança para continuar.');
+      return;
+    }
     setPixState({ loading: true, error: '', result: null, copied: false });
     try {
-      const result = await createPagBankPix({ orderId: state.order.id, customer });
+      const result = await createPagBankPix({ orderId: state.order.id, customer, turnstileToken: securityToken });
       setPixState({ loading: false, error: '', result, copied: false });
       setPaymentCheck({ checking: true, timedOut: false, error: '' });
     } catch (error) {
+      const securityMessage = securityFailureMessage(error);
+      if (securityMessage) setSecurityError(securityMessage);
       const message = error?.code === 'PIX_CREATION_UNCERTAIN'
         ? 'Não foi possível confirmar a criação do Pix. Aguarde antes de tentar novamente.'
         : 'Não foi possível gerar o Pix de teste. Confira os dados e tente novamente.';
-      setPixState({ loading: false, error: message, result: null, copied: false });
+      setPixState({ loading: false, error: securityMessage ? '' : message, result: null, copied: false });
+    } finally {
+      resetTurnstile();
     }
   }
 
@@ -259,6 +341,11 @@ export function CheckoutPage() {
 
   async function handleCreateCard(event) {
     event.preventDefault();
+    const securityToken = consumeTurnstileToken();
+    if (!securityToken) {
+      setSecurityError('Conclua a verificação de segurança para continuar.');
+      return;
+    }
     setCardState({ loading: true, error: '', result: null });
     try {
       const result = await createPagBankCard({
@@ -269,12 +356,15 @@ export function CheckoutPage() {
           taxId: sameHolderTaxId ? customer.taxId : holder.taxId
         },
         card,
-        installments: Number(selectedInstallments)
+        installments: Number(selectedInstallments),
+        turnstileToken: securityToken
       });
       setCard({ number: '', expMonth: '', expYear: '', securityCode: '' });
       setCardState({ loading: false, error: '', result });
       setPaymentCheck({ checking: true, timedOut: false, error: '' });
     } catch (error) {
+      const securityMessage = securityFailureMessage(error);
+      if (securityMessage) setSecurityError(securityMessage);
       setCard((current) => ({ ...current, securityCode: '' }));
       const messages = {
         PAGBANK_DECLINED: 'Pagamento recusado. Confira os dados ou tente outro cartão.',
@@ -284,25 +374,37 @@ export function CheckoutPage() {
       };
       setCardState({
         loading: false,
-        error: messages[error?.code] || 'Não foi possível processar o cartão. Confira os dados e tente novamente.',
+        error: securityMessage
+          ? ''
+          : messages[error?.code] || 'Não foi possível processar o cartão. Confira os dados e tente novamente.',
         result: null
       });
+    } finally {
+      resetTurnstile();
     }
   }
 
   async function handleCreateBoleto(event) {
     event.preventDefault();
     if (!isServiceOrder) return;
+    const securityToken = consumeTurnstileToken();
+    if (!securityToken) {
+      setSecurityError('Conclua a verificação de segurança para continuar.');
+      return;
+    }
     setBoletoState({ loading: true, error: '', result: null });
     try {
       const result = await createPagBankBoleto({
         orderId: state.order.id,
         customer: { name: customer.name, email: customer.email, taxId: customer.taxId },
-        address
+        address,
+        turnstileToken: securityToken
       });
       setBoletoState({ loading: false, error: '', result });
       globalThis.location.assign(result.publicUrl);
     } catch (error) {
+      const securityMessage = securityFailureMessage(error);
+      if (securityMessage) setSecurityError(securityMessage);
       const messages = {
         BOLETO_NOT_AVAILABLE: 'Boleto está disponível somente para serviços.',
         BOLETO_CREATION_UNCERTAIN: 'Não foi possível confirmar a emissão. Aguarde antes de tentar novamente.',
@@ -310,9 +412,13 @@ export function CheckoutPage() {
       };
       setBoletoState({
         loading: false,
-        error: messages[error?.code] || 'Não foi possível gerar o boleto. Confira os dados e tente novamente.',
+        error: securityMessage
+          ? ''
+          : messages[error?.code] || 'Não foi possível gerar o boleto. Confira os dados e tente novamente.',
         result: null
       });
+    } finally {
+      resetTurnstile();
     }
   }
 
@@ -378,7 +484,15 @@ export function CheckoutPage() {
                 <span>CPF/CNPJ</span>
                 <input className="input" name="taxId" inputMode="numeric" autoComplete="off" value={customer.taxId} onChange={handleCustomerChange} required />
               </label>
-              <button className="button" type="submit" disabled={pixState.loading}>
+              <CheckoutSecurityVerification
+                resetKey={turnstileResetKey}
+                token={turnstileToken}
+                onSuccess={handleTurnstileSuccess}
+                onError={handleTurnstileError}
+                onExpire={handleTurnstileExpire}
+              />
+              {securityError && <p className="checkout-pix-error" role="alert">{securityError}</p>}
+              <button className="button" type="submit" disabled={pixState.loading || !turnstileToken}>
                 {pixState.loading ? 'Gerando Pix...' : 'Gerar Pix'}
               </button>
               {pixState.error && <p className="checkout-pix-error" role="alert">{pixState.error}</p>}
@@ -470,7 +584,16 @@ export function CheckoutPage() {
                 </select>
               </label>
               {installmentsError && <p className="checkout-pix-error checkout-card-number" role="alert">{installmentsError}</p>}
-              <button className="button checkout-card-number" type="submit" disabled={cardState.loading || !selectedInstallments}>
+              <CheckoutSecurityVerification
+                className="checkout-card-number"
+                resetKey={turnstileResetKey}
+                token={turnstileToken}
+                onSuccess={handleTurnstileSuccess}
+                onError={handleTurnstileError}
+                onExpire={handleTurnstileExpire}
+              />
+              {securityError && <p className="checkout-pix-error checkout-card-number" role="alert">{securityError}</p>}
+              <button className="button checkout-card-number" type="submit" disabled={cardState.loading || !selectedInstallments || !turnstileToken}>
                 {cardState.loading ? 'Processando pagamento...' : 'Pagar com cartão'}
               </button>
               {cardState.error && <p className="checkout-pix-error checkout-card-number" role="alert">{cardState.error}</p>}
@@ -530,7 +653,16 @@ export function CheckoutPage() {
                 <input className="input" name="city" autoComplete="address-level2" maxLength="90" value={address.city} onChange={handleAddressChange} required />
               </label>
               <p className="checkout-boleto-wide">Vencimento em 3 dias corridos. Não há taxa adicional para pagamento por boleto.</p>
-              <button className="button checkout-boleto-wide" type="submit" disabled={boletoState.loading}>
+              <CheckoutSecurityVerification
+                className="checkout-boleto-wide"
+                resetKey={turnstileResetKey}
+                token={turnstileToken}
+                onSuccess={handleTurnstileSuccess}
+                onError={handleTurnstileError}
+                onExpire={handleTurnstileExpire}
+              />
+              {securityError && <p className="checkout-pix-error checkout-boleto-wide" role="alert">{securityError}</p>}
+              <button className="button checkout-boleto-wide" type="submit" disabled={boletoState.loading || !turnstileToken}>
                 {boletoState.loading ? 'Gerando boleto...' : 'Gerar boleto'}
               </button>
               {boletoState.error && <p className="checkout-pix-error checkout-boleto-wide" role="alert">{boletoState.error}</p>}

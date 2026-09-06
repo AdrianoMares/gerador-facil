@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
+import { verifyTurnstileToken } from '../../../_turnstile.js';
 
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PIX_EXPIRATION_MINUTES = 30;
@@ -8,7 +9,7 @@ const MAX_BODY_BYTES = 16 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_FIELDS = new Set(['orderId', 'customer']);
+const ALLOWED_BODY_FIELDS = new Set(['orderId', 'customer', 'turnstileToken']);
 const ALLOWED_CUSTOMER_FIELDS = new Set(['name', 'email', 'taxId', 'phone']);
 
 function digits(value) {
@@ -183,6 +184,10 @@ function configuredWebhookUrl(env) {
 function publicError(error) {
   const code = error?.message;
   if (code === 'BODY_TOO_LARGE') return { status: 413, code };
+  if (code === 'TURNSTILE_VALIDATION_FAILED') return { status: 403, code };
+  if (['SECURITY_VALIDATION_NOT_CONFIGURED', 'SECURITY_VALIDATION_UNAVAILABLE'].includes(code)) {
+    return { status: 503, code };
+  }
   if (['INVALID_BODY', 'INVALID_ORDER_ID', 'INVALID_CUSTOMER', 'INVALID_CUSTOMER_NAME', 'INVALID_CUSTOMER_EMAIL', 'INVALID_CUSTOMER_TAX_ID', 'INVALID_CUSTOMER_PHONE'].includes(code)) {
     return { status: 400, code };
   }
@@ -355,7 +360,8 @@ export function createPagBankPixHandler({
   createClientImpl = createClient,
   fetchImpl = fetch,
   env = process.env,
-  now = () => new Date()
+  now = () => new Date(),
+  verifyTurnstileImpl = verifyTurnstileToken
 } = {}) {
   return async function pagBankPixCreate(request, response) {
     if (request.method !== 'POST') {
@@ -374,6 +380,7 @@ export function createPagBankPixHandler({
       if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
 
       const input = validatePagBankPixInput(request.body);
+      await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       if (!configurationReady(env)) throw new Error('PAYMENT_NOT_CONFIGURED');
 
       const backend = serviceClient(createClientImpl, env);

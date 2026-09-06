@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { fetchPagBankFeePlans, validCardBin } from '../../../_pagbankCard.js';
+import { verifyTurnstileToken } from '../../../_turnstile.js';
 
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
@@ -28,8 +29,9 @@ function normalizedName(value) {
 }
 
 export function validatePagBankCardInput(body) {
-  if (!objectWithFields(body, ['orderId', 'customer', 'holder', 'encryptedCard', 'cardBin', 'installments'])
-    || Object.keys(body).length !== 6 || !UUID_PATTERN.test(body.orderId || '') || !validCardBin(body.cardBin)
+  if (!objectWithFields(body, ['orderId', 'customer', 'holder', 'encryptedCard', 'cardBin', 'installments', 'turnstileToken'])
+    || Object.keys(body).length < 6 || Object.keys(body).length > 7
+    || !UUID_PATTERN.test(body.orderId || '') || !validCardBin(body.cardBin)
     || !Number.isInteger(body.installments) || body.installments < 1 || body.installments > 5) {
     throw new Error('INVALID_BODY');
   }
@@ -211,6 +213,10 @@ async function postOrder(fetchImpl, env, paymentId, body) {
 function publicError(error) {
   const code = error?.message;
   if (code === 'BODY_TOO_LARGE') return { status: 413, code };
+  if (code === 'TURNSTILE_VALIDATION_FAILED') return { status: 403, code };
+  if (['SECURITY_VALIDATION_NOT_CONFIGURED', 'SECURITY_VALIDATION_UNAVAILABLE'].includes(code)) {
+    return { status: 503, code };
+  }
   if (code === 'INVALID_BODY' || code === 'INVALID_CARD_DATA') return { status: 400, code };
   if (code === 'ORDER_NOT_FOUND') return { status: 404, code };
   if (['ORDER_NOT_PENDING_PAYMENT', 'PAYMENT_METHOD_IN_PROGRESS', 'CARD_PAYMENT_IN_PROGRESS', 'CARD_CREATION_UNCERTAIN'].includes(code)) {
@@ -224,7 +230,8 @@ function publicError(error) {
 export function createPagBankCardHandler({
   createClientImpl = createClient,
   fetchImpl = fetch,
-  env = process.env
+  env = process.env,
+  verifyTurnstileImpl = verifyTurnstileToken
 } = {}) {
   return async function pagBankCardCreate(request, response) {
     if (request.method !== 'POST') return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
@@ -240,6 +247,7 @@ export function createPagBankCardHandler({
       const auth = client(createClientImpl, env, env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY);
       const { data: userData, error: userError } = await auth.auth.getUser(accessToken);
       if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       const backend = client(createClientImpl, env, env.SUPABASE_SERVICE_ROLE_KEY);
       const order = await loadOrder(backend, input.orderId, userData.user.id);
 

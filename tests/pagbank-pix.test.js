@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   buildPagBankPixPayload,
-  createPagBankPixHandler,
+  createPagBankPixHandler as createRawPagBankPixHandler,
   validatePagBankPixInput,
   validatePagBankPixResponse
 } from '../api/payments/pagbank/pix/create.js';
@@ -17,6 +17,7 @@ const externalPaymentId = 'CHAR_114DB991-F5EA-496A-8D2C-4497F53CED22';
 const expiresAt = '2026-09-04T12:30:00.000Z';
 const validBody = {
   orderId,
+  turnstileToken: 'turnstile-valid-token',
   customer: {
     name: 'Maria da Silva',
     email: 'maria@example.com',
@@ -24,6 +25,10 @@ const validBody = {
     phone: '(11) 99999-1234'
   }
 };
+const createPagBankPixHandler = (options = {}) => createRawPagBankPixHandler({
+  ...options,
+  verifyTurnstileImpl: options.verifyTurnstileImpl || (async () => true)
+});
 const env = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
@@ -241,6 +246,64 @@ test('endpoint autentica antes de criar client service_role e falha fechado fora
   assert.equal(production.calls.fetch.length, 0);
 });
 
+test('Pix sem token é rejeitado antes de preparar ou chamar o PagBank', async () => {
+  const fixture = backendFixture();
+  const handler = createRawPagBankPixHandler({
+    createClientImpl: fixture.createClientImpl,
+    env,
+    fetchImpl: successfulFetch(fixture.calls),
+    verifyTurnstileImpl: async (token) => {
+      assert.equal(token, undefined);
+      throw new Error('TURNSTILE_VALIDATION_FAILED');
+    }
+  });
+  const response = await invoke(handler, {
+    authorization: 'Bearer valid-token',
+    body: { orderId: validBody.orderId, customer: validBody.customer }
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(response.body, { error: 'TURNSTILE_VALIDATION_FAILED' });
+  assert.equal(fixture.calls.rpc.length, 0);
+  assert.equal(fixture.calls.fetch.length, 0);
+});
+
+test('falhas reais do Siteverify e secret ausente bloqueiam antes da persistência e do PagBank', async () => {
+  for (const scenario of [
+    {
+      env: { ...env, TURNSTILE_SECRET_KEY: 'turnstile-secret' },
+      expectedStatus: 403,
+      expectedCode: 'TURNSTILE_VALIDATION_FAILED',
+      fetchImpl: async (url) => {
+        assert.equal(url, 'https://challenges.cloudflare.com/turnstile/v0/siteverify');
+        return { ok: true, async json() { return { success: false, 'error-codes': ['invalid-input-response'] }; } };
+      }
+    },
+    {
+      env: { ...env, TURNSTILE_SECRET_KEY: 'turnstile-secret' },
+      expectedStatus: 503,
+      expectedCode: 'SECURITY_VALIDATION_UNAVAILABLE',
+      fetchImpl: async () => { throw new Error('network unavailable'); }
+    },
+    {
+      env,
+      expectedStatus: 503,
+      expectedCode: 'SECURITY_VALIDATION_NOT_CONFIGURED',
+      fetchImpl: async () => { throw new Error('network should not be called'); }
+    }
+  ]) {
+    const fixture = backendFixture();
+    const response = await invoke(createRawPagBankPixHandler({
+      createClientImpl: fixture.createClientImpl,
+      env: scenario.env,
+      fetchImpl: scenario.fetchImpl
+    }), { authorization: 'Bearer valid-token' });
+    assert.equal(response.status, scenario.expectedStatus);
+    assert.equal(response.body.error, scenario.expectedCode);
+    assert.equal(fixture.calls.rpc.length, 0);
+    assert.deepEqual(fixture.calls.clientKeys, ['publishable-key']);
+  }
+});
+
 test('webhook URL ausente falha antes do claim e não deixa pagamento submitting', async () => {
   const fixture = backendFixture();
   const withoutWebhook = { ...env };
@@ -349,6 +412,7 @@ test('sucesso persiste estado created e IDs externos', async () => {
   assert.equal(fixture.calls.rpc.some((call) => call.name === 'record_pagbank_pix_creation'), true);
   assert.equal('x-idempotency-key' in fixture.calls.fetch[0].options.headers, false);
   assert.equal(JSON.stringify(fixture.calls.rpc[0].params).includes('52998224725'), false);
+  assert.equal(JSON.stringify(fixture.calls.rpc).includes(validBody.turnstileToken), false);
 });
 
 test('DECLINED persiste payment failed e provider_request_state failed', async () => {
@@ -496,7 +560,7 @@ test('PAID recuperado não altera order, entitlement nem executa fulfillment', a
   assert.equal(fixture.calls.rpc.some((call) => /fulfill|entitlement/i.test(call.name)), false);
 });
 
-test('serviço frontend envia somente orderId e customer com JWT do usuário', async () => {
+test('serviço frontend envia somente dados do pagamento e token de segurança com JWT do usuário', async () => {
   let request;
   await createPagBankPix(validBody, {
     getSession: async () => ({ access_token: 'browser-token' }),
