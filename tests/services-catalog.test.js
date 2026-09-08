@@ -12,10 +12,15 @@ test('catálogo de serviços contém as categorias iniciais e identificadores ú
 
 test('serviços individuais só são resolvidos quando possuem conteúdo preparado', () => {
   const draft = findServiceBySlugs('mei', 'declaracao-anual-mei');
+  const aberturaMei = findServiceBySlugs('mei', 'abertura-de-mei');
 
   assert.equal(draft?.status, 'draft');
   assert.equal(draft?.detail?.technicalName, 'DASN-SIMEI');
-  assert.equal(findServiceBySlugs('mei', 'abertura-de-mei'), undefined);
+  assert.equal(aberturaMei?.status, 'draft');
+  assert.equal(aberturaMei?.priceCents, 10000);
+  assert.equal(aberturaMei?.priceSuffix, 'por abertura');
+  assert.equal(aberturaMei?.detail?.heroTitle, 'Abertura de MEI');
+  assert.equal(aberturaMei?.checkout, undefined);
   assert.equal(findServiceBySlugs('categoria-inexistente', 'servico-inexistente'), undefined);
 });
 
