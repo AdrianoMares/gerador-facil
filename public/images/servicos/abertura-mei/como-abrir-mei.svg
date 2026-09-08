@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Como funciona a abertura do MEI</title>
+  <desc id="desc">Fluxo em cinco etapas: verificar requisitos, escolher atividade e CNAE, conferir dados, realizar formalização e receber CNPJ e CCMEI.</desc>
+  <rect width="1200" height="675" rx="32" fill="#F4F6F8"/>
+  <text x="80" y="105" fill="#163B63" font-family="Manrope, Arial, sans-serif" font-size="42" font-weight="700">Como funciona a abertura do MEI</text>
+  <text x="80" y="147" fill="#50677D" font-family="Manrope, Arial, sans-serif" font-size="21">Uma visão simples do processo de formalização assistida.</text>
+  <g font-family="Manrope, Arial, sans-serif">
+    <path d="M275 340H338M505 340H568M735 340H798M965 340H1028" stroke="#2E9E6F" stroke-width="7" stroke-linecap="round"/>
+    <path d="M328 325L343 340L328 355M495 325L510 340L495 355M725 325L740 340L725 355M955 325L970 340L955 355" fill="none" stroke="#2E9E6F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <g>
+      <circle cx="200" cy="340" r="77" fill="#163B63"/><text x="200" y="353" text-anchor="middle" fill="white" font-size="32" font-weight="700">1</text>
+      <text x="200" y="465" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">Verificar se pode</text><text x="200" y="496" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">ser MEI</text>
+    </g>
+    <g>
+      <circle cx="430" cy="340" r="77" fill="#2E9E6F"/><text x="430" y="353" text-anchor="middle" fill="white" font-size="32" font-weight="700">2</text>
+      <text x="430" y="465" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">Escolher atividade</text><text x="430" y="496" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">e CNAE</text>
+    </g>
+    <g>
+      <circle cx="660" cy="340" r="77" fill="#163B63"/><text x="660" y="353" text-anchor="middle" fill="white" font-size="32" font-weight="700">3</text>
+      <text x="660" y="465" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">Conferir</text><text x="660" y="496" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">os dados</text>
+    </g>
+    <g>
+      <circle cx="890" cy="340" r="77" fill="#2E9E6F"/><text x="890" y="353" text-anchor="middle" fill="white" font-size="32" font-weight="700">4</text>
+      <text x="890" y="465" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">Realizar a</text><text x="890" y="496" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">formalização</text>
+    </g>
+    <g>
+      <circle cx="1120" cy="340" r="77" fill="#163B63"/><text x="1120" y="353" text-anchor="middle" fill="white" font-size="32" font-weight="700">5</text>
+      <text x="1120" y="465" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">Receber CNPJ</text><text x="1120" y="496" text-anchor="middle" fill="#163B63" font-size="23" font-weight="700">e CCMEI</text>
+    </g>
+  </g>
+</svg>

@@ -1,4 +1,5 @@
 import { regularizacaoMeiDetail } from './regularizacaoMeiDetail.js';
+import { aberturaMeiDetail } from './aberturaMeiDetail.js';
 
 export const serviceCategories = [
   {
@@ -219,12 +220,15 @@ export const serviceCategories = [
         category: 'MEI',
         categorySlug: 'mei',
         path: '/servicos/mei/abertura-de-mei',
-        description: 'Auxílio para formalização e abertura do Microempreendedor Individual.',
-        status: 'planned',
+        description: 'Atendimento online para orientar e auxiliar na formalização do MEI e emissão do CNPJ e CCMEI.',
+        priceCents: 10000,
+        priceSuffix: 'por abertura',
+        status: 'draft',
         seo: {
-          title: 'Abertura de MEI | Resodi',
-          description: 'Auxílio para formalização e abertura de MEI.'
-        }
+          title: 'Abrir MEI: CNPJ e Formalização Online',
+          description: 'Quer abrir MEI? A Resodi orienta atividade e CNAE, auxilia na formalização e conclusão do seu CNPJ MEI. Atendimento online por R$ 100.'
+        },
+        detail: aberturaMeiDetail
       },
       {
         name: 'Declaração Anual do MEI',
