@@ -1,3 +1,5 @@
+import { regularizacaoMeiDetail } from './regularizacaoMeiDetail.js';
+
 export const serviceCategories = [
   {
     name: 'Imposto de Renda',
@@ -310,12 +312,18 @@ export const serviceCategories = [
         category: 'MEI',
         categorySlug: 'mei',
         path: '/servicos/mei/regularizacao-mei',
-        description: 'Ajuda para identificar pendências e regularizar a situação do MEI.',
-        status: 'planned',
+        description: 'Análise e orientação para regularizar pendências, débitos e parcelamentos do MEI.',
+        priceCents: 10000,
+        priceSuffix: 'por MEI/regularização',
+        status: 'draft',
         seo: {
-          title: 'Regularização do MEI | Resodi',
-          description: 'Ajuda para identificar pendências e regularizar a situação do MEI.'
-        }
+          title: 'Regularizar MEI Atrasado, Dívidas e Parcelamento',
+          description: 'Precisa regularizar MEI atrasado? A Resodi analisa dívidas, débitos, possibilidades de parcelamento e pendências do MEI com atendimento online.'
+        },
+        checkout: {
+          productCode: 'regularizacao_mei'
+        },
+        detail: regularizacaoMeiDetail
       }
     ]
   },

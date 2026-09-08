@@ -38,7 +38,13 @@ function InlineCta({ service, cta }) {
       </div>
       <div className="service-inline-cta-action">
         {price && <span>{price}{service.priceSuffix ? ` ${service.priceSuffix}` : ''}</span>}
-        <a className="button" href="#contratar-servico">{cta.buttonLabel || 'Contratar serviço'}</a>
+        {service.status === 'active' ? (
+          <a className="button" href="#contratar-servico">{cta.buttonLabel || 'Contratar serviço'}</a>
+        ) : (
+          <button className="button service-draft-inline-button" type="button" disabled aria-disabled="true">
+            {cta.buttonLabel || 'Contratar serviço'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -50,6 +56,11 @@ function DetailSection({ section, service }) {
     <section className={`service-detail-section ${section.className || ''}`} aria-labelledby={id}>
       <h2 id={id}>{section.title}</h2>
       {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      {section.links?.length > 0 && (
+        <ul className="service-detail-links">
+          {section.links.map((link) => <li key={link.to}><Link to={link.to}>{link.label}</Link></li>)}
+        </ul>
+      )}
       {section.bullets?.length > 0 && (
         <ul className="service-detail-list">
           {section.bullets.map((item) => <li key={item}>{item}</li>)}

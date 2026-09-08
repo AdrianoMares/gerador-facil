@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 941" role="img" aria-labelledby="title desc">
+  <title id="title">Como funciona a regularização do MEI</title>
+  <desc id="desc">Fluxo em cinco etapas: consultar a situação, identificar pendências, verificar débitos, avaliar pagamento ou parcelamento e acompanhar a regularização.</desc>
+  <rect width="1672" height="941" fill="#f4f6f8"/>
+  <rect x="80" y="73" width="1512" height="795" rx="36" fill="#fff"/>
+  <text x="150" y="181" fill="#163b63" font-family="Manrope, Arial, sans-serif" font-size="50" font-weight="700">Como funciona a regularização do MEI</text>
+  <text x="150" y="232" fill="#5d7284" font-family="Manrope, Arial, sans-serif" font-size="25">A situação é analisada antes de definir o procedimento aplicável.</text>
+  <g font-family="Manrope, Arial, sans-serif">
+    <path d="M350 444H443M634 444H727M918 444H1011M1202 444H1295" stroke="#2e9e6f" stroke-width="8" stroke-linecap="round"/>
+    <path d="m425 425 20 19-20 19m284-38 20 19-20 19m284-38 20 19-20 19m284-38 20 19-20 19" fill="none" stroke="#2e9e6f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <g fill="#163b63">
+      <circle cx="256" cy="444" r="94"/><circle cx="540" cy="444" r="94"/><circle cx="824" cy="444" r="94"/><circle cx="1108" cy="444" r="94"/><circle cx="1392" cy="444" r="94"/>
+    </g>
+    <g fill="#b8e3cf" font-size="40" font-weight="700" text-anchor="middle"><text x="256" y="458">1</text><text x="540" y="458">2</text><text x="824" y="458">3</text><text x="1108" y="458">4</text><text x="1392" y="458">5</text></g>
+    <g fill="#163b63" font-size="27" font-weight="700" text-anchor="middle"><text x="256" y="597">Consultar</text><text x="256" y="632">situação</text><text x="540" y="597">Identificar</text><text x="540" y="632">pendências</text><text x="824" y="597">Verificar</text><text x="824" y="632">débitos</text><text x="1108" y="597">Avaliar pagamento</text><text x="1108" y="632">ou parcelamento</text><text x="1392" y="597">Acompanhar</text><text x="1392" y="632">regularização</text></g>
+    <text x="150" y="774" fill="#5d7284" font-size="25">As opções dependem da situação do débito e das regras dos canais oficiais.</text>
+  </g>
+</svg>
