@@ -4,6 +4,7 @@ import { findServiceBySlugs } from '../../catalog/servicesRegistry';
 import { malhaFinaSupplement } from '../../catalog/malhaFinaSupplement';
 import { Seo } from '../../components/Seo';
 import { ServicePurchase } from '../../components/ServicePurchase';
+import { ServiceLegalAcceptance } from '../../components/ServiceLegalAcceptance';
 import { siteIdentity } from '../../config/siteIdentity';
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { NotFound } from './NotFound';
@@ -173,6 +174,7 @@ export function ServiceDetailPage() {
                   </div>
                 )}
                 <p>{detail.purchaseDescription || 'Esta página está sendo preparada para o lançamento do serviço.'}</p>
+                <ServiceLegalAcceptance disabled />
                 <button className="button service-draft-hero-button" type="button" disabled aria-disabled="true">
                   Contratar serviço
                 </button>
