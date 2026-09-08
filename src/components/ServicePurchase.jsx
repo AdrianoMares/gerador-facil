@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { createCheckoutOrder, recordServiceLegalAcceptances } from '../services/commerce';
+import { canStartServicePurchase } from '../services/servicePurchase.js';
 import { formatCurrencyBRL } from '../utils/formatters';
+import { ServiceLegalAcceptance } from './ServiceLegalAcceptance';
 import './ServicePurchase.css';
 
 const unavailableMessage = 'A contratação deste serviço ainda está sendo configurada.';
@@ -18,7 +20,7 @@ export function ServicePurchase({ service }) {
   async function handlePurchase() {
     setMessage('');
 
-    if (!termsAccepted || !privacyAccepted) {
+    if (!canStartServicePurchase(service, termsAccepted, privacyAccepted)) {
       setMessage('Marque os aceites obrigatórios para continuar.');
       return;
     }
@@ -63,30 +65,20 @@ export function ServicePurchase({ service }) {
       )}
       <p>{purchaseDescription}</p>
 
-      <label className="service-legal-check">
-        <input
-          type="checkbox"
-          checked={termsAccepted}
-          onChange={(event) => {
-            setTermsAccepted(event.target.checked);
-            setMessage('');
-          }}
-        />
-        <span>Li e aceito os <Link to="/termos-de-uso" target="_blank" rel="noreferrer">Termos de Uso</Link>.</span>
-      </label>
-      <label className="service-legal-check">
-        <input
-          type="checkbox"
-          checked={privacyAccepted}
-          onChange={(event) => {
-            setPrivacyAccepted(event.target.checked);
-            setMessage('');
-          }}
-        />
-        <span>Li e aceito a <Link to="/politica-de-privacidade" target="_blank" rel="noreferrer">Política de Privacidade</Link>.</span>
-      </label>
+      <ServiceLegalAcceptance
+        termsAccepted={termsAccepted}
+        privacyAccepted={privacyAccepted}
+        onTermsChange={(accepted) => {
+          setTermsAccepted(accepted);
+          setMessage('');
+        }}
+        onPrivacyChange={(accepted) => {
+          setPrivacyAccepted(accepted);
+          setMessage('');
+        }}
+      />
 
-      <button className="button" type="button" onClick={handlePurchase} disabled={isStartingCheckout}>
+      <button className="button" type="button" onClick={handlePurchase} disabled={isStartingCheckout || !canStartServicePurchase(service, termsAccepted, privacyAccepted)}>
         {isStartingCheckout ? 'Preparando...' : 'Contratar serviço'}
       </button>
       {message && <p className="service-purchase-message" role="status">{message}</p>}

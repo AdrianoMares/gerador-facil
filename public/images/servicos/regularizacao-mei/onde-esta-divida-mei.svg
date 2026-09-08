@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 941" role="img" aria-labelledby="title desc">
   <title id="title">MEI atrasado: onde pode estar a dívida?</title>
-  <desc id="desc">Diagrama mostra a consulta da situação do MEI e dois caminhos: débitos ainda nos serviços do Simples Nacional ou débitos inscritos em dívida ativa, com procedimento correspondente.</desc>
+  <desc id="desc">Diagrama mostra a consulta da situação do MEI e dois caminhos: débitos ainda nos serviços do Simples Nacional ou dívida ativa, que exige identificar o órgão responsável pela cobrança.</desc>
   <rect width="1672" height="941" fill="#f4f6f8"/>
   <rect x="80" y="73" width="1512" height="795" rx="36" fill="#fff"/>
   <g font-family="Manrope, Arial, sans-serif"><text x="150" y="181" fill="#163b63" font-size="50" font-weight="700">MEI atrasado: onde pode estar a dívida?</text><text x="150" y="232" fill="#5d7284" font-size="25">A consulta identifica o canal correto para analisar o procedimento.</text>
   <rect x="614" y="310" width="444" height="114" rx="20" fill="#163b63"/><text x="836" y="357" fill="#fff" font-size="28" font-weight="700" text-anchor="middle">Consultar situação</text><text x="836" y="392" fill="#b8e3cf" font-size="21" text-anchor="middle">Débitos e pendências do MEI</text>
   <path d="M836 424v83M836 507H426M836 507h410M426 507v67m820-67v67" fill="none" stroke="#2e9e6f" stroke-width="8" stroke-linecap="round"/>
   <rect x="164" y="574" width="524" height="172" rx="24" fill="#eaf5ef" stroke="#b9d9ca" stroke-width="2"/><text x="426" y="632" fill="#163b63" font-size="30" font-weight="700" text-anchor="middle">DAS e Simples Nacional</text><text x="426" y="675" fill="#3d6476" font-size="23" text-anchor="middle">Verificar guias em atraso e</text><text x="426" y="708" fill="#3d6476" font-size="23" text-anchor="middle">possibilidade de parcelamento</text>
-  <rect x="984" y="574" width="524" height="172" rx="24" fill="#eef3f8" stroke="#cbd8e3" stroke-width="2"/><text x="1246" y="632" fill="#163b63" font-size="30" font-weight="700" text-anchor="middle">Dívida ativa</text><text x="1246" y="675" fill="#3d6476" font-size="23" text-anchor="middle">Consultar a cobrança e as opções</text><text x="1246" y="708" fill="#3d6476" font-size="23" text-anchor="middle">disponíveis no canal competente</text>
+  <rect x="984" y="574" width="524" height="172" rx="24" fill="#eef3f8" stroke="#cbd8e3" stroke-width="2"/><text x="1246" y="622" fill="#163b63" font-size="30" font-weight="700" text-anchor="middle">Dívida ativa</text><text x="1246" y="663" fill="#3d6476" font-size="23" text-anchor="middle">Identificar o órgão responsável</text><text x="1246" y="696" fill="#3d6476" font-size="23" text-anchor="middle">e usar o canal correspondente</text>
   <text x="836" y="815" fill="#5d7284" font-size="23" text-anchor="middle">Não há desconto, parcelamento ou aprovação garantidos.</text></g>
 </svg>

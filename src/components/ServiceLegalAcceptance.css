@@ -1,0 +1,32 @@
+.service-legal-check {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  margin: 10px 0;
+  color: #496177;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.service-legal-check input {
+  margin-top: 3px;
+  accent-color: #2e9e6f;
+}
+
+.service-legal-check input:disabled {
+  cursor: not-allowed;
+}
+
+.service-legal-check a {
+  color: #163b63;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.service-commercial-placeholder .service-legal-check {
+  color: #d9e3ec;
+}
+
+.service-commercial-placeholder .service-legal-check a {
+  color: #b8e3cf;
+}
