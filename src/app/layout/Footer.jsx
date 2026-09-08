@@ -29,7 +29,7 @@ export function Footer() {
             <a href={`mailto:${siteIdentity.contactEmail}`}>{siteIdentity.contactEmail}</a>
           </div>
         </div>
-        <div className="footer-bottom">© {year} {siteIdentity.brand}. CNPJ {siteIdentity.cnpj}. Todos os direitos reservados.</div>
+        <div className="footer-bottom">© {year} {siteIdentity.brand}. Todos os direitos reservados.</div>
       </div>
     </footer>
   );
