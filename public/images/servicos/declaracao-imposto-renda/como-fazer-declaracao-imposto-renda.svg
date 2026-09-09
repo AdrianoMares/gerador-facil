@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 941" role="img" aria-labelledby="title desc">
+  <title id="title">Como fazer a declaração de Imposto de Renda</title>
+  <desc id="desc">Fluxo em cinco etapas: reunir documentos, conferir rendimentos, informar deduções e patrimônio, revisar a declaração, transmitir e guardar o recibo.</desc>
+  <rect width="1672" height="941" rx="32" fill="#F4F6F8"/>
+  <path d="M0 0h1672v174H0z" fill="#0D2742"/>
+  <circle cx="1512" cy="86" r="118" fill="#163B63"/>
+  <circle cx="1596" cy="22" r="54" fill="#2E9E6F" opacity=".9"/>
+  <text x="92" y="78" fill="#B9E3D0" font-family="Manrope,Arial,sans-serif" font-size="24" font-weight="600">PASSO A PASSO</text>
+  <text x="92" y="129" fill="#FFFFFF" font-family="Manrope,Arial,sans-serif" font-size="43" font-weight="600">Como preparar sua declaração</text>
+  <path d="M214 496H1458" stroke="#B9C9D8" stroke-width="12" stroke-linecap="round"/>
+  <path d="m1432 470 34 26-34 26" fill="none" stroke="#2E9E6F" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <g font-family="Manrope,Arial,sans-serif">
+    <g transform="translate(92 318)">
+      <circle cx="122" cy="178" r="92" fill="#FFFFFF" stroke="#163B63" stroke-width="8"/>
+      <path d="M87 139h70v80H87z" fill="none" stroke="#163B63" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M102 123h40v25h-40zM103 169h38M103 190h28" fill="none" stroke="#2E9E6F" stroke-width="8" stroke-linecap="round"/>
+      <circle cx="122" cy="178" r="22" fill="#163B63"/>
+      <text x="122" y="187" fill="#FFFFFF" text-anchor="middle" font-size="26" font-weight="700">1</text>
+      <text x="122" y="310" fill="#0D2742" text-anchor="middle" font-size="25" font-weight="600">Reunir</text>
+      <text x="122" y="344" fill="#52697D" text-anchor="middle" font-size="23">documentos</text>
+    </g>
+    <g transform="translate(404 318)">
+      <circle cx="122" cy="178" r="92" fill="#FFFFFF" stroke="#163B63" stroke-width="8"/>
+      <path d="M77 207h90M88 196v-39M111 196v-61M134 196v-27M157 196v-76" fill="none" stroke="#2E9E6F" stroke-width="10" stroke-linecap="round"/>
+      <circle cx="122" cy="178" r="22" fill="#163B63"/>
+      <text x="122" y="187" fill="#FFFFFF" text-anchor="middle" font-size="26" font-weight="700">2</text>
+      <text x="122" y="310" fill="#0D2742" text-anchor="middle" font-size="25" font-weight="600">Conferir</text>
+      <text x="122" y="344" fill="#52697D" text-anchor="middle" font-size="23">rendimentos</text>
+    </g>
+    <g transform="translate(716 318)">
+      <circle cx="122" cy="178" r="92" fill="#FFFFFF" stroke="#163B63" stroke-width="8"/>
+      <path d="M81 137h82v78H81zM99 137v-20M145 137v-20M99 163h46M99 187h30" fill="none" stroke="#2E9E6F" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="122" cy="178" r="22" fill="#163B63"/>
+      <text x="122" y="187" fill="#FFFFFF" text-anchor="middle" font-size="26" font-weight="700">3</text>
+      <text x="122" y="310" fill="#0D2742" text-anchor="middle" font-size="25" font-weight="600">Informar deduções</text>
+      <text x="122" y="344" fill="#52697D" text-anchor="middle" font-size="23">e patrimônio</text>
+    </g>
+    <g transform="translate(1028 318)">
+      <circle cx="122" cy="178" r="92" fill="#FFFFFF" stroke="#163B63" stroke-width="8"/>
+      <path d="M78 176l27 28 62-67" fill="none" stroke="#2E9E6F" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="122" cy="178" r="22" fill="#163B63"/>
+      <text x="122" y="187" fill="#FFFFFF" text-anchor="middle" font-size="26" font-weight="700">4</text>
+      <text x="122" y="310" fill="#0D2742" text-anchor="middle" font-size="25" font-weight="600">Revisar</text>
+      <text x="122" y="344" fill="#52697D" text-anchor="middle" font-size="23">a declaração</text>
+    </g>
+    <g transform="translate(1340 318)">
+      <circle cx="122" cy="178" r="92" fill="#FFFFFF" stroke="#2E9E6F" stroke-width="8"/>
+      <path d="M83 172h78M122 133v78M96 198l26 25 26-25" fill="none" stroke="#163B63" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="122" cy="178" r="22" fill="#2E9E6F"/>
+      <text x="122" y="187" fill="#FFFFFF" text-anchor="middle" font-size="26" font-weight="700">5</text>
+      <text x="122" y="310" fill="#0D2742" text-anchor="middle" font-size="25" font-weight="600">Transmitir</text>
+      <text x="122" y="344" fill="#52697D" text-anchor="middle" font-size="23">e guardar recibo</text>
+    </g>
+  </g>
+  <rect x="92" y="790" width="1488" height="76" rx="18" fill="#E4F3EC"/>
+  <text x="836" y="838" fill="#163B63" text-anchor="middle" font-family="Manrope,Arial,sans-serif" font-size="24" font-weight="600">Confira cada informação antes de transmitir pelos canais oficiais.</text>
+</svg>
