@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1672 941" role="img" aria-labelledby="title desc">
+  <title id="title">Quem precisa verificar a obrigatoriedade de declarar Imposto de Renda</title>
+  <desc id="desc">Mapa visual dos principais temas de obrigatoriedade: rendimentos, patrimônio, atividade rural, ganho de capital, bolsa, exterior e outras hipóteses.</desc>
+  <rect width="1672" height="941" rx="32" fill="#F4F6F8"/>
+  <path d="M0 0h1672v174H0z" fill="#0D2742"/>
+  <circle cx="1512" cy="86" r="118" fill="#163B63"/>
+  <circle cx="1596" cy="22" r="54" fill="#2E9E6F" opacity=".9"/>
+  <text x="92" y="78" fill="#B9E3D0" font-family="Manrope,Arial,sans-serif" font-size="24" font-weight="600">OBRIGATORIEDADE</text>
+  <text x="92" y="129" fill="#FFFFFF" font-family="Manrope,Arial,sans-serif" font-size="43" font-weight="600">Quem precisa verificar se deve declarar?</text>
+  <g fill="none" stroke="#B9C9D8" stroke-width="5">
+    <path d="M836 478 449 316M836 478 1223 316M836 478 356 562M836 478 1316 562M836 478 519 754M836 478 1153 754"/>
+  </g>
+  <g font-family="Manrope,Arial,sans-serif">
+    <circle cx="836" cy="478" r="148" fill="#163B63"/>
+    <circle cx="836" cy="478" r="119" fill="#0D2742"/>
+    <path d="M782 472h108M800 436h72M805 508h62" fill="none" stroke="#2E9E6F" stroke-width="10" stroke-linecap="round"/>
+    <text x="836" y="566" fill="#FFFFFF" text-anchor="middle" font-size="25" font-weight="600">Analise o conjunto</text>
+    <g transform="translate(285 222)">
+      <rect width="328" height="188" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="59" r="31" fill="#E4F3EC"/>
+      <path d="M42 64h32M49 51h18M49 77h18" stroke="#2E9E6F" stroke-width="7" stroke-linecap="round"/>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Rendimentos</text>
+      <text x="36" y="117" fill="#52697D" font-size="21">Tributáveis, isentos ou</text>
+      <text x="36" y="148" fill="#52697D" font-size="21">tributados na fonte</text>
+    </g>
+    <g transform="translate(1059 222)">
+      <rect width="328" height="188" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="59" r="31" fill="#E4F3EC"/>
+      <path d="M42 70h32V48H42zM48 48V38h20v10" fill="none" stroke="#2E9E6F" stroke-width="6" stroke-linejoin="round"/>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Patrimônio</text>
+      <text x="36" y="117" fill="#52697D" font-size="21">Bens e direitos no Brasil</text>
+      <text x="36" y="148" fill="#52697D" font-size="21">ou no exterior</text>
+    </g>
+    <g transform="translate(192 468)">
+      <rect width="328" height="188" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="59" r="31" fill="#E4F3EC"/>
+      <path d="M58 35v48M35 59h46M43 43l30 32M73 43 43 75" stroke="#2E9E6F" stroke-width="5" stroke-linecap="round"/>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Atividade rural</text>
+      <text x="36" y="117" fill="#52697D" font-size="21">Receita e compensação</text>
+      <text x="36" y="148" fill="#52697D" font-size="21">de prejuízos</text>
+    </g>
+    <g transform="translate(1152 468)">
+      <rect width="328" height="188" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="59" r="31" fill="#E4F3EC"/>
+      <path d="m38 73 17-21 13 12 17-29" fill="none" stroke="#2E9E6F" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Capital e bolsa</text>
+      <text x="36" y="117" fill="#52697D" font-size="21">Vendas, ganho de capital</text>
+      <text x="36" y="148" fill="#52697D" font-size="21">e operações em bolsa</text>
+    </g>
+    <g transform="translate(355 690)">
+      <rect width="328" height="160" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="58" r="31" fill="#E4F3EC"/>
+      <circle cx="58" cy="58" r="21" fill="none" stroke="#2E9E6F" stroke-width="5"/>
+      <path d="M37 58h42M58 37c9 10 9 32 0 42M58 37c-9 10-9 32 0 42" fill="none" stroke="#2E9E6F" stroke-width="4"/>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Exterior</text>
+      <text x="36" y="118" fill="#52697D" font-size="21">Ativos, rendimentos,</text>
+      <text x="36" y="146" fill="#52697D" font-size="21">trusts e controladas</text>
+    </g>
+    <g transform="translate(989 690)">
+      <rect width="328" height="160" rx="24" fill="#FFFFFF" stroke="#D5E0E8" stroke-width="3"/>
+      <circle cx="58" cy="58" r="31" fill="#E4F3EC"/>
+      <text x="58" y="69" fill="#2E9E6F" text-anchor="middle" font-size="34" font-weight="700">+</text>
+      <text x="105" y="62" fill="#0D2742" font-size="26" font-weight="600">Outras hipóteses</text>
+      <text x="36" y="118" fill="#52697D" font-size="21">Residência e demais</text>
+      <text x="36" y="146" fill="#52697D" font-size="21">regras oficiais</text>
+    </g>
+  </g>
+</svg>

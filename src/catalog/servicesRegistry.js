@@ -1,5 +1,7 @@
 import { regularizacaoMeiDetail } from './regularizacaoMeiDetail.js';
 import { aberturaMeiDetail } from './aberturaMeiDetail.js';
+import { declaracaoImpostoRendaDetail } from './declaracaoImpostoRendaDetail.js';
+import { currentYear } from '../config/currentYear.js';
 
 export const serviceCategories = [
   {
@@ -7,18 +9,21 @@ export const serviceCategories = [
     slug: 'imposto-de-renda',
     services: [
       {
-        name: 'Declaração de Imposto de Renda',
-        shortName: 'Declaração de IR',
+        name: `Declaração de Imposto de Renda ${currentYear}`,
+        shortName: `Declaração de IR ${currentYear}`,
         slug: 'declaracao-imposto-de-renda',
         category: 'Imposto de Renda',
         categorySlug: 'imposto-de-renda',
         path: '/servicos/imposto-de-renda/declaracao-imposto-de-renda',
-        description: 'Orientação e realização da declaração de Imposto de Renda.',
-        status: 'planned',
+        description: `Atendimento online para preparar, conferir e transmitir a Declaração de Imposto de Renda ${currentYear}.`,
+        priceCents: 10000,
+        priceSuffix: 'por declaração/ano',
+        status: 'draft',
         seo: {
-          title: 'Declaração de Imposto de Renda | Resodi',
-          description: 'Orientação para a declaração de Imposto de Renda.'
-        }
+          title: `Declaração de Imposto de Renda ${currentYear} Online`,
+          description: `Faça sua Declaração de Imposto de Renda ${currentYear} com atendimento online. A Resodi auxilia na preparação, conferência e transmissão do IRPF.`
+        },
+        detail: declaracaoImpostoRendaDetail
       },
       {
         name: 'Malha Fina do Imposto de Renda',
