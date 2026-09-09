@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(new URL('../supabase/migrations/20260903020000_create_service_requests.sql', import.meta.url), 'utf8');
+const backendCheckoutMigration = readFileSync(new URL('../supabase/migrations/20260909034102_restrict_checkout_order_to_backend.sql', import.meta.url), 'utf8');
 
 test('núcleo separa estado financeiro de solicitações operacionais e protege tabelas com RLS', () => {
   assert.match(migration, /create table public\.order_legal_acceptances/);
@@ -43,6 +44,31 @@ test('checkout de serviços resolve aceites jurídicos no banco e preserva o sna
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /o\.status = 'pending_payment'/);
   assert.doesNotMatch(migration, /p_(?:document_version|content_hash|legal_document_id|legal_acceptance_id)/);
+});
+
+test('checkout server-only remove o RPC do navegador e preserva todas as validações financeiras', () => {
+  assert.match(backendCheckoutMigration, /revoke all on function public\.create_checkout_order\(text, uuid\) from public, anon, authenticated, service_role/);
+  assert.match(backendCheckoutMigration, /drop function public\.create_checkout_order\(text, uuid\)/);
+  assert.match(backendCheckoutMigration, /create function public\.create_checkout_order_server/);
+  assert.match(backendCheckoutMigration, /security invoker\s+set search_path = ''/);
+  assert.match(backendCheckoutMigration, /revoke all on function public\.create_checkout_order_server\(uuid, text, uuid\) from public, anon, authenticated/);
+  assert.match(backendCheckoutMigration, /grant execute on function public\.create_checkout_order_server\(uuid, text, uuid\) to service_role/);
+  assert.doesNotMatch(backendCheckoutMigration, /grant execute .* to (?:anon|authenticated)/);
+
+  assert.match(backendCheckoutMigration, /if p_user_id is null/);
+  assert.match(backendCheckoutMigration, /where code = p_product_code and active = true/);
+  assert.match(backendCheckoutMigration, /v_product\.price_cents is null or v_product\.price_cents <= 0/);
+  assert.match(backendCheckoutMigration, /user_id = p_user_id and status = 'ready'/);
+  assert.match(backendCheckoutMigration, /v_draft\.service_type is distinct from v_product\.resource_kind/);
+  assert.match(backendCheckoutMigration, /v_product\.fulfillment_mode = 'service_request'/);
+  assert.match(backendCheckoutMigration, /ld\.document_type = 'terms_of_use'/);
+  assert.match(backendCheckoutMigration, /ld\.document_type = 'privacy_policy'/);
+  assert.match(backendCheckoutMigration, /message = 'LEGAL_ACCEPTANCE_REQUIRED'/);
+  assert.match(backendCheckoutMigration, /pg_advisory_xact_lock/);
+  assert.match(backendCheckoutMigration, /o\.status = 'pending_payment'/);
+  assert.match(backendCheckoutMigration, /insert into public\.order_legal_acceptances/);
+  assert.match(backendCheckoutMigration, /v_product\.price_cents, v_product\.price_cents/);
+  assert.doesNotMatch(backendCheckoutMigration, /p_(?:price|amount|total|currency)/);
 });
 
 test('fulfillment é interno, pago, juridicamente vinculado e idempotente por item', () => {

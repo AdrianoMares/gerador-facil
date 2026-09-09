@@ -5,7 +5,10 @@ import { malhaFinaSupplement } from '../../catalog/malhaFinaSupplement';
 import { Seo } from '../../components/Seo';
 import { ServicePurchase } from '../../components/ServicePurchase';
 import { ServiceLegalAcceptance } from '../../components/ServiceLegalAcceptance';
+import { serviceCheckoutEnabled } from '../../config/serviceCheckout';
 import { siteIdentity } from '../../config/siteIdentity';
+import { isServiceCheckoutReady, isServicePurchaseEnabled } from '../../services/servicePurchase';
+import { buildServiceStructuredData } from '../../services/serviceSeo';
 import { formatCurrencyBRL } from '../../utils/formatters';
 import { NotFound } from './NotFound';
 import './ServiceDetailPage.css';
@@ -26,7 +29,7 @@ function ListSection({ title, items, className = '' }) {
   );
 }
 
-function InlineCta({ service, cta }) {
+function InlineCta({ service, cta, purchaseEnabled }) {
   const price = Number.isInteger(service.priceCents) && service.priceCents > 0
     ? formatCurrencyBRL(service.priceCents / 100)
     : null;
@@ -39,7 +42,7 @@ function InlineCta({ service, cta }) {
       </div>
       <div className="service-inline-cta-action">
         {price && <span>{price}{service.priceSuffix ? ` ${service.priceSuffix}` : ''}</span>}
-        {service.status === 'active' ? (
+        {purchaseEnabled ? (
           <a className="button" href="#contratar-servico">{cta.buttonLabel || 'Contratar serviço'}</a>
         ) : (
           <button className="button service-draft-inline-button" type="button" disabled aria-disabled="true">
@@ -51,7 +54,7 @@ function InlineCta({ service, cta }) {
   );
 }
 
-function DetailSection({ section, service }) {
+function DetailSection({ section, service, purchaseEnabled }) {
   const id = sectionId(section.title);
   return (
     <section className={`service-detail-section ${section.className || ''}`} aria-labelledby={id}>
@@ -80,7 +83,7 @@ function DetailSection({ section, service }) {
           {section.image.caption && <figcaption>{section.image.caption}</figcaption>}
         </figure>
       )}
-      {section.cta && <InlineCta service={service} cta={section.cta} />}
+      {section.cta && <InlineCta service={service} cta={section.cta} purchaseEnabled={purchaseEnabled} />}
     </section>
   );
 }
@@ -96,52 +99,21 @@ export function ServiceDetailPage() {
   const canonical = `${siteIdentity.domain}${service.path}`;
   const heroTitle = detail.heroTitle || `${service.name}${detail.technicalName ? ` (${detail.technicalName})` : ''}`;
   const hasPrice = Number.isInteger(service.priceCents) && service.priceCents > 0;
+  const checkoutReady = isServiceCheckoutReady(service);
+  const purchaseEnabled = isServicePurchaseEnabled(service, serviceCheckoutEnabled);
   const supplement = service.slug === 'malha-fina' ? malhaFinaSupplement : null;
   const faqItems = [...(supplement?.faq || []), ...detail.faq];
   const transparencyParagraphs = detail.transparency?.paragraphs || [
     'A Resodi é uma empresa privada de serviços digitais e não possui vínculo com a Receita Federal, Gov.br ou outros órgãos públicos.',
     'A transmissão da DASN-SIMEI pode ser realizada gratuitamente pelos canais oficiais do Governo. O valor cobrado pela Resodi corresponde ao atendimento, orientação, preparação e execução do serviço para o cliente.'
   ];
-  const structuredData = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'Service',
-        name: service.name,
-        description: service.seo.description,
-        url: canonical,
-        provider: {
-          '@type': 'Organization',
-          name: siteIdentity.brand,
-          url: siteIdentity.domain
-        },
-        areaServed: {
-          '@type': 'Country',
-          name: 'Brasil'
-        },
-        ...(service.status === 'active' && hasPrice ? {
-          offers: {
-            '@type': 'Offer',
-            priceCurrency: 'BRL',
-            price: (service.priceCents / 100).toFixed(2),
-            availability: 'https://schema.org/InStock',
-            url: canonical
-          }
-        } : {})
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: faqItems.map(([question, answer]) => ({
-          '@type': 'Question',
-          name: question,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: answer
-          }
-        }))
-      }
-    ]
-  };
+  const structuredData = buildServiceStructuredData({
+    service,
+    canonical,
+    faqItems,
+    provider: siteIdentity,
+    purchaseEnabled
+  });
 
   return (
     <>
@@ -163,7 +135,7 @@ export function ServiceDetailPage() {
             <p>{detail.intro}</p>
           </div>
           <div id="contratar-servico" className="service-purchase-anchor">
-            {service.status === 'active' ? <ServicePurchase service={service} /> : (
+            {checkoutReady ? <ServicePurchase service={service} environmentEnabled={serviceCheckoutEnabled} /> : (
               <aside className="service-commercial-placeholder" aria-label="Disponibilidade do serviço">
                 <span>Contratação online</span>
                 <strong>{detail.purchaseTitle || 'Contratação em breve'}</strong>
@@ -186,9 +158,9 @@ export function ServiceDetailPage() {
       <main className="container page-section service-detail-content">
         {detail.sections.map((section, index) => (
           <Fragment key={section.title}>
-            <DetailSection section={section} service={service} />
+            <DetailSection section={section} service={service} purchaseEnabled={purchaseEnabled} />
             {index === 0 && supplement?.sections?.map((supplementSection) => (
-              <DetailSection key={supplementSection.title} section={supplementSection} service={service} />
+              <DetailSection key={supplementSection.title} section={supplementSection} service={service} purchaseEnabled={purchaseEnabled} />
             ))}
           </Fragment>
         ))}
@@ -207,7 +179,7 @@ export function ServiceDetailPage() {
           <ol className="service-steps">{detail.steps.map((step) => <li key={step}>{step}</li>)}</ol>
         </section>
 
-        {detail.afterStepsCta && <InlineCta service={service} cta={detail.afterStepsCta} />}
+        {detail.afterStepsCta && <InlineCta service={service} cta={detail.afterStepsCta} purchaseEnabled={purchaseEnabled} />}
 
         <ListSection title="O que poderá ser solicitado para concluir o serviço" items={detail.requestedInformation} />
 
@@ -218,7 +190,7 @@ export function ServiceDetailPage() {
           {transparencyParagraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
         </section>
 
-        {detail.seoSections?.map((section) => <DetailSection key={section.title} section={section} service={service} />)}
+        {detail.seoSections?.map((section) => <DetailSection key={section.title} section={section} service={service} purchaseEnabled={purchaseEnabled} />)}
 
         <section className="service-detail-section" aria-labelledby="perguntas-frequentes">
           <h2 id="perguntas-frequentes">Perguntas frequentes</h2>
@@ -227,7 +199,7 @@ export function ServiceDetailPage() {
           </div>
         </section>
 
-        {detail.finalCta && <InlineCta service={service} cta={detail.finalCta} />}
+        {detail.finalCta && <InlineCta service={service} cta={detail.finalCta} purchaseEnabled={purchaseEnabled} />}
       </main>
     </>
   );

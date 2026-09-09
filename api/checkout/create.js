@@ -5,7 +5,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const FINANCIAL_FIELDS = new Set(['amount', 'total', 'price', 'unitPrice', 'currency', 'status', 'paid', 'provider', 'providerPaymentId']);
 const ALLOWED_FIELDS = new Set(['productCode', 'resourceId']);
 
-function checkoutClient(createClientImpl, env, accessToken) {
+function authenticatedClient(createClientImpl, env, accessToken) {
   const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
   const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) throw new Error('AUTH_NOT_CONFIGURED');
@@ -13,6 +13,15 @@ function checkoutClient(createClientImpl, env, accessToken) {
   return createClientImpl(url, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
     global: { headers: { Authorization: `Bearer ${accessToken}` } }
+  });
+}
+
+function backendClient(createClientImpl, env) {
+  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  if (!url || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('CHECKOUT_BACKEND_NOT_CONFIGURED');
+
+  return createClientImpl(url, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
 }
 
@@ -40,6 +49,7 @@ function publicError(error) {
   if (['PRODUCT_NOT_AVAILABLE', 'LEGAL_ACCEPTANCE_REQUIRED'].includes(code)) return { status: 409, code };
   if (['INVALID_FULFILLMENT', 'INVALID_DOCUMENT_RESOURCE'].includes(code)) return { status: 422, code };
   if (code === 'AUTH_NOT_CONFIGURED') return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
+  if (code === 'CHECKOUT_BACKEND_NOT_CONFIGURED') return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
   return { status: 500, code: 'CHECKOUT_UNAVAILABLE' };
 }
 
@@ -49,16 +59,24 @@ export function createCheckoutHandler({ createClientImpl = createClient, env = p
       return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
     }
 
+    if (env.SERVICE_CHECKOUT_ENABLED !== 'true') {
+      return sendJson(response, 503, { error: 'CHECKOUT_DISABLED' });
+    }
+
     const accessToken = bearerToken(request.headers?.authorization);
     if (!accessToken) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
 
     try {
       const input = validateBody(request.body);
-      const client = checkoutClient(createClientImpl, env, accessToken);
-      const { data: userData, error: userError } = await client.auth.getUser(accessToken);
-      if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      const authClient = authenticatedClient(createClientImpl, env, accessToken);
+      const { data: userData, error: userError } = await authClient.auth.getUser(accessToken);
+      if (userError || !UUID_PATTERN.test(userData?.user?.id || '')) {
+        return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      }
 
-      const { data: orderId, error } = await client.rpc('create_checkout_order', {
+      const client = backendClient(createClientImpl, env);
+      const { data: orderId, error } = await client.rpc('create_checkout_order_server', {
+        p_user_id: userData.user.id,
         p_product_code: input.productCode,
         p_resource_id: input.resourceId
       });

@@ -1,26 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCheckoutOrder, recordServiceLegalAcceptances } from '../services/commerce';
-import { canStartServicePurchase } from '../services/servicePurchase.js';
+import { canStartServicePurchase, isServiceCheckoutReady } from '../services/servicePurchase.js';
 import { formatCurrencyBRL } from '../utils/formatters';
 import { ServiceLegalAcceptance } from './ServiceLegalAcceptance';
 import './ServicePurchase.css';
 
 const unavailableMessage = 'A contratação deste serviço ainda está sendo configurada.';
 
-export function ServicePurchase({ service }) {
+export function ServicePurchase({ service, environmentEnabled = false }) {
   const [message, setMessage] = useState('');
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const navigate = useNavigate();
 
-  if (service.status !== 'active' || !service.checkout?.productCode) return null;
+  if (!isServiceCheckoutReady(service)) return null;
+
+  const purchaseEnabled = environmentEnabled === true;
 
   async function handlePurchase() {
     setMessage('');
 
-    if (!canStartServicePurchase(service, termsAccepted, privacyAccepted)) {
+    if (!purchaseEnabled) {
+      setMessage(unavailableMessage);
+      return;
+    }
+
+    if (!canStartServicePurchase(service, purchaseEnabled, termsAccepted, privacyAccepted)) {
       setMessage('Marque os aceites obrigatórios para continuar.');
       return;
     }
@@ -68,6 +75,7 @@ export function ServicePurchase({ service }) {
       <ServiceLegalAcceptance
         termsAccepted={termsAccepted}
         privacyAccepted={privacyAccepted}
+        disabled={!purchaseEnabled}
         onTermsChange={(accepted) => {
           setTermsAccepted(accepted);
           setMessage('');
@@ -78,9 +86,10 @@ export function ServicePurchase({ service }) {
         }}
       />
 
-      <button className="button" type="button" onClick={handlePurchase} disabled={isStartingCheckout || !canStartServicePurchase(service, termsAccepted, privacyAccepted)}>
+      <button className="button" type="button" onClick={handlePurchase} disabled={isStartingCheckout || !canStartServicePurchase(service, purchaseEnabled, termsAccepted, privacyAccepted)}>
         {isStartingCheckout ? 'Preparando...' : 'Contratar serviço'}
       </button>
+      {!purchaseEnabled && <p className="service-purchase-message" role="status">{unavailableMessage}</p>}
       {message && <p className="service-purchase-message" role="status">{message}</p>}
     </aside>
   );

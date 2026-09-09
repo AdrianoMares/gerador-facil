@@ -36,6 +36,7 @@ export const serviceCategories = [
           description: 'CPF Pendente de Regularização, Erro 04 ou declaração na Malha Fina? A Resodi identifica a pendência do IR e auxilia na regularização.'
         },
         checkout: {
+          ready: false,
           productCode: 'malha_fina_ir'
         },
         detail: {
@@ -228,6 +229,9 @@ export const serviceCategories = [
           title: 'Abrir MEI: CNPJ e Formalização Online',
           description: 'Quer abrir MEI? A Resodi orienta atividade e CNAE, auxilia na formalização e conclusão do seu CNPJ MEI. Atendimento online por R$ 100.'
         },
+        checkout: {
+          ready: false
+        },
         detail: aberturaMeiDetail
       },
       {
@@ -245,6 +249,7 @@ export const serviceCategories = [
           description: 'Faça sua Declaração Anual do MEI (DASN-SIMEI) com atendimento online. A Resodi auxilia na preparação, envio e conclusão da declaração.'
         },
         checkout: {
+          ready: true,
           productCode: 'declaracao_anual_mei'
         },
         detail: {
@@ -325,6 +330,7 @@ export const serviceCategories = [
           description: 'Precisa regularizar MEI atrasado? A Resodi analisa dívidas, débitos, possibilidades de parcelamento e pendências do MEI com atendimento online.'
         },
         checkout: {
+          ready: false,
           productCode: 'regularizacao_mei'
         },
         detail: regularizacaoMeiDetail

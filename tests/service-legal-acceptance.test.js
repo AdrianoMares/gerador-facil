@@ -2,20 +2,41 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { findServiceBySlugs } from '../src/catalog/servicesRegistry.js';
-import { canStartServicePurchase } from '../src/services/servicePurchase.js';
+import { readServiceCheckoutEnabled } from '../src/config/serviceCheckout.js';
+import {
+  canStartServicePurchase,
+  isServiceCheckoutReady,
+  isServicePurchaseEnabled
+} from '../src/services/servicePurchase.js';
 
-test('contratação de serviço ativo só inicia com os dois aceites', () => {
-  const activeService = { status: 'active' };
+const readyDraftService = {
+  status: 'draft',
+  checkout: { ready: true, productCode: 'service_code' }
+};
 
-  assert.equal(canStartServicePurchase(activeService, false, false), false);
-  assert.equal(canStartServicePurchase(activeService, true, false), false);
-  assert.equal(canStartServicePurchase(activeService, false, true), false);
-  assert.equal(canStartServicePurchase(activeService, true, true), true);
+test('contratação de serviço pronto só inicia em ambiente habilitado e com os dois aceites', () => {
+  assert.equal(canStartServicePurchase(readyDraftService, false, true, true), false);
+  assert.equal(canStartServicePurchase(readyDraftService, true, false, false), false);
+  assert.equal(canStartServicePurchase(readyDraftService, true, true, false), false);
+  assert.equal(canStartServicePurchase(readyDraftService, true, false, true), false);
+  assert.equal(canStartServicePurchase(readyDraftService, true, true, true), true);
 });
 
-test('serviço draft nunca pode iniciar contratação', () => {
-  assert.equal(canStartServicePurchase({ status: 'draft' }, true, true), false);
-  assert.equal(canStartServicePurchase({ status: 'planned' }, true, true), false);
+test('flag frontend é estrita e permanece fail closed', () => {
+  assert.equal(readServiceCheckoutEnabled({}), false);
+  assert.equal(readServiceCheckoutEnabled({ VITE_SERVICE_CHECKOUT_ENABLED: 'false' }), false);
+  assert.equal(readServiceCheckoutEnabled({ VITE_SERVICE_CHECKOUT_ENABLED: 'TRUE' }), false);
+  assert.equal(readServiceCheckoutEnabled({ VITE_SERVICE_CHECKOUT_ENABLED: 'invalid' }), false);
+  assert.equal(readServiceCheckoutEnabled({ VITE_SERVICE_CHECKOUT_ENABLED: 'true' }), true);
+});
+
+test('prontidão técnica é independente do status editorial', () => {
+  assert.equal(isServiceCheckoutReady(readyDraftService), true);
+  assert.equal(isServicePurchaseEnabled(readyDraftService, true), true);
+  assert.equal(isServicePurchaseEnabled(readyDraftService, false), false);
+  assert.equal(isServiceCheckoutReady({ status: 'active', checkout: { ready: false, productCode: 'service_code' } }), false);
+  assert.equal(isServiceCheckoutReady({ status: 'planned', checkout: { ready: true, productCode: 'service_code' } }), false);
+  assert.equal(isServiceCheckoutReady({ status: 'draft', checkout: { ready: true } }), false);
 });
 
 test('aceites jurídicos são reutilizáveis e links permanecem disponíveis em draft', () => {
@@ -28,6 +49,8 @@ test('aceites jurídicos são reutilizáveis e links permanecem disponíveis em 
   assert.match(legalAcceptance, /disabled=\{disabled\}/);
   assert.match(purchase, /recordServiceLegalAcceptances/);
   assert.match(purchase, /canStartServicePurchase/);
+  assert.match(purchase, /disabled=\{!purchaseEnabled\}/);
+  assert.ok(purchase.indexOf('if (!purchaseEnabled)') < purchase.indexOf('recordServiceLegalAcceptances()'));
   assert.match(detailPage, /<ServiceLegalAcceptance disabled \/>/);
 });
 
@@ -39,6 +62,7 @@ test('Regularização do MEI continua como rascunho sem checkout ativo', () => {
   assert.equal(service?.priceCents, 10000);
   assert.equal(service?.priceSuffix, 'por MEI/regularização');
   assert.equal(service?.checkout?.productCode, 'regularizacao_mei');
+  assert.equal(service?.checkout?.ready, false);
   assert.doesNotMatch(detail, /\/servicos\/mei\/abertura-de-mei/);
   assert.match(detail, /\/servicos\/mei\/declaracao-anual-mei/);
 });

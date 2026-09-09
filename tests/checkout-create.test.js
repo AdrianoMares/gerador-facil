@@ -5,9 +5,12 @@ import { createCheckoutOrder } from '../src/services/commerce.js';
 
 const env = {
   VITE_SUPABASE_URL: 'https://example.supabase.co',
-  VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key'
+  VITE_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  SERVICE_CHECKOUT_ENABLED: 'true'
 };
 const orderId = '7e9f8d13-7f09-4ed1-aecb-a35d447f0e7a';
+const userId = '27422d51-2608-4d6f-bd41-e3eaba283915';
 
 function invoke(handler, { method = 'POST', authorization, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -22,16 +25,16 @@ function invoke(handler, { method = 'POST', authorization, body } = {}) {
 }
 
 function createClientImpl(calls) {
-  return (_url, _key, options) => ({
+  return (_url, key, options) => ({
     auth: {
       async getUser(token) {
         return token === 'valid-token'
-          ? { data: { user: { id: 'user-id' } }, error: null }
+          ? { data: { user: { id: userId } }, error: null }
           : { data: { user: null }, error: new Error('invalid') };
       }
     },
     async rpc(name, params) {
-      calls.push({ name, params, options });
+      calls.push({ name, params, options, key });
       return { data: orderId, error: null };
     }
   });
@@ -44,12 +47,36 @@ test('checkout rejeita métodos diferentes de POST', async () => {
 });
 
 test('checkout exige Bearer token', async () => {
-  const result = await invoke(createCheckoutHandler(), { body: {} });
+  const result = await invoke(createCheckoutHandler({ env }), { body: {} });
   assert.deepEqual(result, {
     status: 401,
     body: { error: 'UNAUTHORIZED' },
     headers: { 'Cache-Control': 'no-store', 'Content-Type': 'application/json; charset=utf-8' }
   });
+});
+
+test('checkout permanece fail closed quando a flag server-side não está explicitamente habilitada', async () => {
+  for (const value of [undefined, 'false', 'TRUE', '1', 'invalid']) {
+    let clientCreated = false;
+    const disabledEnv = { ...env };
+    if (value === undefined) delete disabledEnv.SERVICE_CHECKOUT_ENABLED;
+    else disabledEnv.SERVICE_CHECKOUT_ENABLED = value;
+
+    const result = await invoke(createCheckoutHandler({
+      env: disabledEnv,
+      createClientImpl: () => {
+        clientCreated = true;
+        throw new Error('client should not be created');
+      }
+    }), {
+      authorization: 'Bearer valid-token',
+      body: { productCode: 'receipt_pdf', resourceId: orderId }
+    });
+
+    assert.equal(result.status, 503);
+    assert.equal(result.body.error, 'CHECKOUT_DISABLED');
+    assert.equal(clientCreated, false);
+  }
 });
 
 test('checkout valida corpo, produto e resourceId antes de chamar RPC', async () => {
@@ -75,7 +102,7 @@ test('checkout valida corpo, produto e resourceId antes de chamar RPC', async ()
   assert.equal(calls.length, 0);
 });
 
-test('checkout encaminha somente produto e recurso à função segura', async () => {
+test('checkout autenticado usa o RPC server-only com a identidade validada pelo backend', async () => {
   const calls = [];
   const handler = createCheckoutHandler({ createClientImpl: createClientImpl(calls), env });
   const result = await invoke(handler, {
@@ -85,16 +112,22 @@ test('checkout encaminha somente produto e recurso à função segura', async ()
 
   assert.equal(result.status, 201);
   assert.deepEqual(result.body, { orderId, checkoutUrl: `/checkout/${orderId}` });
-  assert.deepEqual(calls[0].params, { p_product_code: 'receipt_pdf', p_resource_id: orderId });
+  assert.equal(calls[0].name, 'create_checkout_order_server');
+  assert.equal(calls[0].key, env.SUPABASE_SERVICE_ROLE_KEY);
+  assert.deepEqual(calls[0].params, {
+    p_user_id: userId,
+    p_product_code: 'receipt_pdf',
+    p_resource_id: orderId
+  });
   assert.equal(JSON.stringify(calls[0].params).includes('price'), false);
-  assert.equal(calls[0].options.global.headers.Authorization, 'Bearer valid-token');
+  assert.equal(calls[0].options.global, undefined);
 });
 
 test('checkout retorna a pendência jurídica resolvida pelo banco para serviços', async () => {
   const handler = createCheckoutHandler({
     env,
     createClientImpl: () => ({
-      auth: { async getUser() { return { data: { user: { id: 'user-id' } }, error: null }; } },
+      auth: { async getUser() { return { data: { user: { id: userId } }, error: null }; } },
       async rpc() { return { data: null, error: { message: 'LEGAL_ACCEPTANCE_REQUIRED' } }; }
     })
   });
