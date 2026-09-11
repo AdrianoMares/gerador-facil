@@ -6,7 +6,7 @@ import { verifyTurnstileToken } from '../../../_turnstile.js';
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 24 * 1024;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_STATUSES = new Set(['WAITING', 'PAID', 'DECLINED', 'IN_ANALYSIS', 'AUTHORIZED']);
