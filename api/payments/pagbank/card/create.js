@@ -6,7 +6,7 @@ import { verifyTurnstileToken } from '../../../_turnstile.js';
 const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 24 * 1024;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ALLOWED_STATUSES = new Set(['WAITING', 'PAID', 'DECLINED', 'IN_ANALYSIS', 'AUTHORIZED']);
@@ -293,6 +293,7 @@ export function createPagBankCardHandler({
         plan,
         notificationUrl
       });
+      console.info('[PAGBANK_HOMOLOGATION][CREDIT_CARD][REQUEST]', JSON.stringify(payload));
       let providerResponse;
       try {
         providerResponse = await postOrder(fetchImpl, env, payment.id, payload);
@@ -317,7 +318,9 @@ export function createPagBankCardHandler({
 
       let result;
       try {
-        result = validatePagBankCardResponse(await providerResponse.json(), { order, payment, plan });
+        const providerBody = await providerResponse.json();
+        console.info('[PAGBANK_HOMOLOGATION][CREDIT_CARD][RESPONSE]', JSON.stringify(providerBody));
+        result = validatePagBankCardResponse(providerBody, { order, payment, plan });
       } catch {
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'CARD_CREATION_UNCERTAIN' });
