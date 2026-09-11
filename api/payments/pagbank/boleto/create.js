@@ -18,7 +18,7 @@ const REGION_NAMES = {
   AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal',
   ES: 'Espírito Santo', GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul',
   MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba', PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí',
-  RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte', RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima',
+  RJ: 'Rio de Janeiro', RN: 'Rio Grande do Sul', RS: 'Rio Grande do Sul', RO: 'Rondônia', RR: 'Roraima',
   SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins'
 };
 
@@ -378,6 +378,7 @@ export function createPagBankBoletoHandler({
           dueDate,
           notificationUrl
         });
+        console.info('[PAGBANK_HOMOLOGATION][BOLETO][REQUEST]', JSON.stringify(payload));
         let providerResponse;
         try {
           providerResponse = await callPagBank(fetchImpl, env, 'POST', context.payment.id, payload);
@@ -394,7 +395,9 @@ export function createPagBankBoletoHandler({
           if (definitive) return sendJson(response, 422, { error: 'PAGBANK_REJECTED' });
           throw new Error('BOLETO_CREATION_UNCERTAIN');
         }
-        result = validatePagBankBoletoResponse(await providerResponse.json(), { ...context, dueDate });
+        const providerBody = await providerResponse.json();
+        console.info('[PAGBANK_HOMOLOGATION][BOLETO][RESPONSE]', JSON.stringify(providerBody));
+        result = validatePagBankBoletoResponse(providerBody, { ...context, dueDate });
         const { data: recorded, error: recordError } = await backend.rpc('record_pagbank_boleto_creation', {
           p_payment_id: context.payment.id,
           p_order_id: context.order.id,
