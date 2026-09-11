@@ -425,6 +425,7 @@ export function createPagBankPixHandler({
         now: now(),
         notificationUrl
       });
+      console.info('[PAGBANK_HOMOLOGATION][PIX][REQUEST]', JSON.stringify(pagBankPayload));
       let pagBankResponse;
       try {
         pagBankResponse = await callPagBank(fetchImpl, env, { method: 'POST', body: pagBankPayload });
@@ -452,6 +453,7 @@ export function createPagBankPixHandler({
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
+      console.info('[PAGBANK_HOMOLOGATION][PIX][RESPONSE]', JSON.stringify(pagBankBody));
 
       let result;
       try {
