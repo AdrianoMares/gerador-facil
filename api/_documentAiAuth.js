@@ -8,7 +8,7 @@ if (!globalThis.__resodiPagBankHomologationChunkLoggerInstalled) {
   const originalConsoleInfo = console.info.bind(console);
 
   console.info = (...args) => {
-    const [prefix, serializedPayload, ...rest] = args;
+    const [prefix, serializedPayload] = args;
 
     if (typeof prefix === 'string'
       && prefix.startsWith(PAGBANK_HOMOLOGATION_LOG_PREFIX)
@@ -39,7 +39,7 @@ if (!globalThis.__resodiPagBankHomologationChunkLoggerInstalled) {
       return;
     }
 
-    originalConsoleInfo(...args, ...rest);
+    originalConsoleInfo(...args);
   };
 
   globalThis.__resodiPagBankHomologationChunkLoggerInstalled = true;
