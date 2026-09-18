@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, sendJson } from '../../../_documentAiAuth.js';
-
-const PAGBANK_PUBLIC_KEY_URL = 'https://sandbox.api.pagseguro.com/public-keys/card';
+import { pagBankApiBaseUrl, requirePagBankEnvironment } from '../../../_pagbankEnvironment.js';
 const PAGBANK_TIMEOUT_MS = 12_000;
 
 function authClient(createClientImpl, env) {
@@ -26,7 +25,7 @@ export function createPagBankCardPublicKeyHandler({
     if (!accessToken) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
 
     try {
-      if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+      const environment = requirePagBankEnvironment(env);
       const auth = authClient(createClientImpl, env);
       const { data, error } = await auth.auth.getUser(accessToken);
       if (error || !data?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
@@ -35,7 +34,7 @@ export function createPagBankCardPublicKeyHandler({
       const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
       let providerResponse;
       try {
-        providerResponse = await fetchImpl(PAGBANK_PUBLIC_KEY_URL, {
+        providerResponse = await fetchImpl(`${pagBankApiBaseUrl(env)}/public-keys/card`, {
           method: 'GET',
           headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
           signal: controller.signal
@@ -54,7 +53,7 @@ export function createPagBankCardPublicKeyHandler({
       if (typeof publicKey !== 'string' || publicKey.length < 100 || publicKey.length > 10_000) {
         throw new Error('PUBLIC_KEY_NOT_CONFIGURED');
       }
-      return sendJson(response, 200, { publicKey, environment: 'sandbox' });
+      return sendJson(response, 200, { publicKey, environment });
     } catch (error) {
       const code = error?.message;
       if (code === 'PAYMENT_NOT_CONFIGURED') return sendJson(response, 503, { error: 'SERVICE_NOT_CONFIGURED' });
