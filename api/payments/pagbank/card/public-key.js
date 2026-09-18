@@ -55,14 +55,36 @@ async function fetchProviderPublicKey(fetchImpl, env) {
 }
 
 async function readiness(createClientImpl, fetchImpl, env) {
-  let pagBankTokenValidated = false;
+  let pagBankTokenAccepted = false;
+  let cardPublicKeyReady = false;
+  let pagBankPublicKeyHttpStatus = null;
   let supabaseConnectivity = false;
 
-  try {
-    const result = await fetchProviderPublicKey(fetchImpl, env);
-    pagBankTokenValidated = result.environment === 'production' && present(result.publicKey);
-  } catch {
-    pagBankTokenValidated = false;
+  if (env.PAGBANK_ENV === 'production' && present(env.PAGBANK_TOKEN)) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
+    try {
+      const response = await fetchImpl(`${pagBankApiBaseUrl(env)}/public-keys/card`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
+        signal: controller.signal
+      });
+      pagBankPublicKeyHttpStatus = response.status;
+      pagBankTokenAccepted = response.status !== 401 && response.status !== 403;
+      if (response.ok && response.status === 200) {
+        try {
+          const body = await response.json();
+          cardPublicKeyReady = present(body?.public_key);
+        } catch {
+          cardPublicKeyReady = false;
+        }
+      }
+    } catch {
+      pagBankTokenAccepted = false;
+      cardPublicKeyReady = false;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   try {
@@ -79,7 +101,9 @@ async function readiness(createClientImpl, fetchImpl, env) {
   const checks = {
     productionEnvironment: env.PAGBANK_ENV === 'production',
     pagBankTokenPresent: present(env.PAGBANK_TOKEN),
-    pagBankTokenValidated,
+    pagBankTokenAccepted,
+    cardPublicKeyReady,
+    pagBankPublicKeyHttpStatus,
     webhookConfigured: env.PAGBANK_WEBHOOK_URL === EXPECTED_WEBHOOK,
     homologationLogsEnabled: env.PAGBANK_HOMOLOGATION_LOGS === 'true',
     serviceCheckoutEnabled: env.SERVICE_CHECKOUT_ENABLED === 'true',
@@ -99,7 +123,8 @@ async function readiness(createClientImpl, fetchImpl, env) {
   const critical = [
     'productionEnvironment',
     'pagBankTokenPresent',
-    'pagBankTokenValidated',
+    'pagBankTokenAccepted',
+    'cardPublicKeyReady',
     'webhookConfigured',
     'homologationLogsEnabled',
     'serviceCheckoutEnabled',
