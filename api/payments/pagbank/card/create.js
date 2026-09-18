@@ -2,8 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { fetchPagBankFeePlans, validCardBin } from '../../../_pagbankCard.js';
 import { verifyTurnstileToken } from '../../../_turnstile.js';
-
-const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
+import {
+  logPagBankHomologation,
+  pagBankApiBaseUrl,
+  pagBankEnvironment,
+  requirePagBankEnvironment
+} from '../../../_pagbankEnvironment.js';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 24 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -150,16 +154,17 @@ function webhookUrl(env) {
   }
 }
 
-async function loadOrder(backend, orderId, userId) {
+async function loadOrder(backend, orderId, userId, providerEnvironment = 'sandbox') {
   const { data, error } = await backend
     .from('orders')
-    .select('id, user_id, status, currency, total_cents, order_items(id, product_name, quantity, unit_price_cents)')
+    .select('id, user_id, status, currency, total_cents, checkout_environment, order_items(id, product_name, quantity, unit_price_cents)')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!data) throw new Error('ORDER_NOT_FOUND');
   if (data.status !== 'pending_payment') throw new Error('ORDER_NOT_PENDING_PAYMENT');
+  if (data.checkout_environment !== providerEnvironment) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (data.currency !== 'BRL' || !Number.isInteger(data.total_cents) || data.total_cents <= 0) {
     throw new Error('ORDER_CURRENCY_NOT_SUPPORTED');
   }
@@ -167,14 +172,14 @@ async function loadOrder(backend, orderId, userId) {
   return data;
 }
 
-async function loadPayment(backend, paymentId, order, plan) {
+async function loadPayment(backend, paymentId, order, plan, providerEnvironment = 'sandbox') {
   const { data, error } = await backend
     .from('payments')
     .select('id, order_id, provider, provider_environment, payment_method, provider_request_state, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id')
     .eq('id', paymentId)
     .maybeSingle();
   if (error || !data || data.order_id !== order.id || data.provider !== 'pagbank'
-    || data.provider_environment !== 'sandbox' || data.payment_method !== 'credit_card'
+    || data.provider_environment !== providerEnvironment || data.payment_method !== 'credit_card'
     || data.status !== 'pending' || data.amount_cents !== plan.totalAmount
     || data.buyer_fee_cents !== plan.buyerFee || data.installments !== plan.installments
     || data.currency !== 'BRL') throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
@@ -194,7 +199,7 @@ async function postOrder(fetchImpl, env, paymentId, body) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
   try {
-    return await fetchImpl(`${PAGBANK_SANDBOX_URL}/orders`, {
+    return await fetchImpl(`${pagBankApiBaseUrl(env)}/orders`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
@@ -241,7 +246,8 @@ export function createPagBankCardHandler({
 
     try {
       const input = validatePagBankCardInput(request.body);
-      if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+      if (!pagBankEnvironment(env) || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+      const providerEnvironment = requirePagBankEnvironment(env);
       const notificationUrl = webhookUrl(env);
       if (!notificationUrl) throw new Error('PAYMENT_NOT_CONFIGURED');
       const auth = client(createClientImpl, env, env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY);
@@ -249,15 +255,16 @@ export function createPagBankCardHandler({
       if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
       await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       const backend = client(createClientImpl, env, env.SUPABASE_SERVICE_ROLE_KEY);
-      const order = await loadOrder(backend, input.orderId, userData.user.id);
+      const order = await loadOrder(backend, input.orderId, userData.user.id, providerEnvironment);
 
       const plans = await fetchPagBankFeePlans(fetchImpl, env, order.total_cents, input.cardBin);
       const plan = plans.find((entry) => entry.installments === input.installments);
       if (!plan) throw new Error('INSTALLMENT_PLAN_NOT_AVAILABLE');
 
-      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_card_payment', {
+      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_card_payment_for_environment', {
         p_order_id: order.id,
         p_user_id: userData.user.id,
+        p_provider_environment: providerEnvironment,
         p_name: input.customer.name,
         p_email: input.customer.email,
         p_phone_country: input.customer.phone.country,
@@ -269,10 +276,10 @@ export function createPagBankCardHandler({
       });
       if (prepareError) throw new Error(prepareError.message);
       if (!UUID_PATTERN.test(paymentId || '')) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
-      const payment = await loadPayment(backend, paymentId, order, plan);
+      const payment = await loadPayment(backend, paymentId, order, plan, providerEnvironment);
 
       if (payment.external_order_id && payment.external_payment_id) {
-        return sendJson(response, 200, { paymentId, status: 'processing', environment: 'sandbox' });
+        return sendJson(response, 200, { paymentId, status: 'processing', environment: providerEnvironment });
       }
       if (payment.provider_request_state !== 'prepared') throw new Error('CARD_CREATION_UNCERTAIN');
 
@@ -293,6 +300,7 @@ export function createPagBankCardHandler({
         plan,
         notificationUrl
       });
+      logPagBankHomologation('CREDIT_CARD', 'REQUEST', payload, { env });
       let providerResponse;
       try {
         providerResponse = await postOrder(fetchImpl, env, payment.id, payload);
@@ -315,9 +323,18 @@ export function createPagBankCardHandler({
         return sendJson(response, 502, { error: 'CARD_CREATION_UNCERTAIN' });
       }
 
+      let providerBody;
+      try {
+        providerBody = await providerResponse.json();
+      } catch {
+        await markUncertain(backend, payment.id);
+        return sendJson(response, 502, { error: 'CARD_CREATION_UNCERTAIN' });
+      }
+      logPagBankHomologation('CREDIT_CARD', 'RESPONSE', providerBody, { env });
+
       let result;
       try {
-        result = validatePagBankCardResponse(await providerResponse.json(), { order, payment, plan });
+        result = validatePagBankCardResponse(providerBody, { order, payment, plan });
       } catch {
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'CARD_CREATION_UNCERTAIN' });
@@ -338,7 +355,7 @@ export function createPagBankCardHandler({
         paymentId: payment.id,
         status: 'processing',
         providerStatus: result.providerStatus,
-        environment: 'sandbox'
+        environment: providerEnvironment
       });
     } catch (error) {
       const result = publicError(error);
