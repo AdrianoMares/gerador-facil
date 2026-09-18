@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { sendJson } from '../../_documentAiAuth.js';
 import { reconcilePagBankPayment } from '../../_pagbankReconciliation.js';
+import { requirePagBankEnvironment } from '../../_pagbankEnvironment.js';
 
 const MAX_RAW_BODY_BYTES = 64 * 1024;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/i;
@@ -72,24 +73,25 @@ function webhookIdentifiers(payload) {
   };
 }
 
-async function loadKnownPayment(backend, identifiers) {
+async function loadKnownPayment(backend, identifiers, providerEnvironment = 'sandbox') {
   const { data: payment, error: paymentError } = await backend
     .from('payments')
     .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents, boleto_due_date, boleto_barcode, boleto_formatted_barcode, boleto_url')
     .eq('id', identifiers.paymentReference)
     .eq('provider', 'pagbank')
-    .eq('provider_environment', 'sandbox')
+    .eq('provider_environment', providerEnvironment)
     .maybeSingle();
   if (paymentError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== identifiers.orderReference) return null;
 
   const { data: order, error: orderError } = await backend
     .from('orders')
-    .select('id, user_id, status, total_cents, currency, order_items(product:products(product_type, fulfillment_mode))')
+    .select('id, user_id, status, total_cents, currency, checkout_environment, order_items(product:products(product_type, fulfillment_mode))')
     .eq('id', identifiers.orderReference)
     .maybeSingle();
   if (orderError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!order
+    || order.checkout_environment !== providerEnvironment
     || (payment.external_order_id && identifiers.externalOrderId !== payment.external_order_id)
     || (payment.external_payment_id && identifiers.externalPaymentId !== payment.external_payment_id)
     || !['pix', 'credit_card', 'boleto'].includes(payment.payment_method)
@@ -119,7 +121,10 @@ export function createPagBankWebhookHandler({
     if (request.method !== 'POST') {
       return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
     }
-    if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) {
+    let providerEnvironment;
+    try {
+      providerEnvironment = requirePagBankEnvironment(env);
+    } catch {
       return sendJson(response, 503, { error: 'SERVICE_NOT_CONFIGURED' });
     }
 
@@ -149,7 +154,7 @@ export function createPagBankWebhookHandler({
 
     try {
       const backend = serviceClient(createClientImpl, env);
-      const payment = await loadKnownPayment(backend, identifiers);
+      const payment = await loadKnownPayment(backend, identifiers, providerEnvironment);
       if (!payment) return sendJson(response, 202, { received: true });
       await reconcilePagBankPayment({ backend, payment, providerIdentifiers: identifiers, fetchImpl, env, logError });
       return sendJson(response, 200, { received: true });
