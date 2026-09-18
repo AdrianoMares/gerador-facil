@@ -210,7 +210,7 @@ async function loadPaymentContext(client, orderId, paymentId, userId, providerEn
   const [{ data: order, error: orderError }, { data: payment, error: paymentError }] = await Promise.all([
     client
       .from('orders')
-      .select('id, user_id, status, currency, total_cents, order_items(id, product_name, quantity, unit_price_cents)')
+      .select('id, user_id, status, currency, total_cents, checkout_environment, order_items(id, product_name, quantity, unit_price_cents)')
       .eq('id', orderId)
       .maybeSingle(),
     client
@@ -223,6 +223,7 @@ async function loadPaymentContext(client, orderId, paymentId, userId, providerEn
   if (orderError || paymentError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!order || order.user_id !== userId) throw new Error('ORDER_NOT_FOUND');
   if (order.status !== 'pending_payment') throw new Error('ORDER_NOT_PENDING_PAYMENT');
+  if (order.checkout_environment !== providerEnvironment) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (order.currency !== 'BRL') throw new Error('ORDER_CURRENCY_NOT_SUPPORTED');
   if (!Array.isArray(order.order_items) || order.order_items.length === 0) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== order.id || payment.provider !== 'pagbank'
@@ -327,7 +328,8 @@ async function recoverCreatedPix({ response, backend, fetchImpl, env, order, pay
       order,
       payment,
       expectedExternalOrderId: payment.external_order_id,
-      expectedExternalPaymentId: payment.external_payment_id
+      expectedExternalPaymentId: payment.external_payment_id,
+      environment: pagBankEnvironment(env) || 'sandbox'
     });
   } catch {
     return sendJson(response, 502, { error: 'PAGBANK_RESPONSE_UNCERTAIN' });
