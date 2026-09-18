@@ -1,5 +1,14 @@
 import { getCommerceSession } from './commerce.js';
 
+const PAGBANK_ENVIRONMENTS = new Set(['sandbox', 'production']);
+const configuredPagBankEnvironment = PAGBANK_ENVIRONMENTS.has(import.meta.env?.VITE_PAGBANK_ENV)
+  ? import.meta.env.VITE_PAGBANK_ENV
+  : 'sandbox';
+
+function validProviderEnvironment(payload) {
+  return payload?.environment === configuredPagBankEnvironment;
+}
+
 export async function createPagBankPix({ orderId, customer, turnstileToken }, {
   fetchImpl = fetch,
   getSession = getCommerceSession
@@ -27,8 +36,8 @@ export async function createPagBankPix({ orderId, customer, turnstileToken }, {
     payload = null;
   }
 
-  if (!response.ok || payload?.environment !== 'sandbox' || !payload?.pix?.copyPaste) {
-    const error = new Error('Não foi possível gerar o Pix de teste.');
+  if (!response.ok || !validProviderEnvironment(payload) || !payload?.pix?.copyPaste) {
+    const error = new Error('Não foi possível gerar o Pix.');
     error.code = payload?.error || 'PIX_CREATE_UNAVAILABLE';
     throw error;
   }
@@ -41,7 +50,7 @@ export async function createPagBankBoleto({ orderId, customer, address, turnstil
     method: 'POST',
     body: JSON.stringify({ orderId, customer, address, turnstileToken })
   }, options);
-  if (payload?.environment !== 'sandbox' || payload?.providerStatus !== 'WAITING'
+  if (!validProviderEnvironment(payload) || payload?.providerStatus !== 'WAITING'
     || !payload?.boleto?.digitableLine || !payload?.boleto?.url || !payload?.publicUrl) {
     const error = new Error('Não foi possível gerar o boleto.');
     error.code = 'BOLETO_CREATE_UNAVAILABLE';
@@ -91,7 +100,7 @@ export async function getPagBankCardInstallments(orderId, cardBin, options = {})
     method: 'POST',
     body: JSON.stringify({ orderId, cardBin })
   }, options);
-  if (payload?.environment !== 'sandbox' || !Array.isArray(payload.installments)) {
+  if (!validProviderEnvironment(payload) || !Array.isArray(payload.installments)) {
     const error = new Error('Não foi possível calcular as parcelas.');
     error.code = 'CARD_INSTALLMENTS_UNAVAILABLE';
     throw error;
@@ -101,8 +110,8 @@ export async function getPagBankCardInstallments(orderId, cardBin, options = {})
 
 async function getPagBankCardPublicKey(options = {}) {
   const payload = await authenticatedRequest('/api/payments/pagbank/card/public-key', { method: 'GET' }, options);
-  if (payload?.environment !== 'sandbox' || typeof payload.publicKey !== 'string') {
-    const error = new Error('A chave de cartão do ambiente de teste não está configurada.');
+  if (!validProviderEnvironment(payload) || typeof payload.publicKey !== 'string') {
+    const error = new Error('A chave de cartão não está configurada.');
     error.code = 'PUBLIC_KEY_NOT_CONFIGURED';
     throw error;
   }
