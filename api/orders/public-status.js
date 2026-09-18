@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { requestContentLength, sendJson } from '../_documentAiAuth.js';
 import { reconcilePagBankPayment } from '../_pagbankReconciliation.js';
+import { requirePagBankEnvironment } from '../_pagbankEnvironment.js';
 
 const MAX_BODY_BYTES = 4 * 1024;
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -38,7 +39,7 @@ function safeBoletoUrl(value) {
   }
 }
 
-async function loadContext(backend, tokenHash) {
+async function loadContext(backend, tokenHash, providerEnvironment = 'sandbox') {
   const { data: access, error: accessError } = await backend.from('order_public_access_tokens')
     .select('order_id, payment_id').eq('token_hash', tokenHash).maybeSingle();
   if (accessError) throw new Error('PUBLIC_ORDER_UNAVAILABLE');
@@ -46,7 +47,7 @@ async function loadContext(backend, tokenHash) {
 
   const [{ data: order, error: orderError }, { data: payment, error: paymentError }] = await Promise.all([
     backend.from('orders')
-      .select('id, status, total_cents, currency, order_items(product_name, product:products(product_type, fulfillment_mode))')
+      .select('id, status, total_cents, currency, checkout_environment, order_items(product_name, product:products(product_type, fulfillment_mode))')
       .eq('id', access.order_id).maybeSingle(),
     backend.from('payments')
       .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents, boleto_due_date, boleto_barcode, boleto_formatted_barcode, boleto_url')
@@ -57,7 +58,8 @@ async function loadContext(backend, tokenHash) {
       && item.product?.fulfillment_mode === 'service_request');
   if (orderError || paymentError) throw new Error('PUBLIC_ORDER_UNAVAILABLE');
   if (!order || !payment || payment.order_id !== order.id || !serviceOnly
-    || payment.provider !== 'pagbank' || payment.provider_environment !== 'sandbox'
+    || payment.provider !== 'pagbank' || payment.provider_environment !== providerEnvironment
+    || order.checkout_environment !== providerEnvironment
     || payment.payment_method !== 'boleto' || payment.amount_cents !== order.total_cents
     || payment.buyer_fee_cents !== 0 || payment.installments !== null
     || payment.currency !== 'BRL' || order.currency !== 'BRL'
@@ -113,12 +115,12 @@ export function createPublicOrderStatusHandler({
     }
     try {
       const token = tokenFromBody(request.body);
-      if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+      const providerEnvironment = requirePagBankEnvironment(env);
       const backend = backendClient(createClientImpl, env);
       const tokenHash = createHash('sha256').update(token).digest('hex');
-      let context = await loadContext(backend, tokenHash);
+      let context = await loadContext(backend, tokenHash, providerEnvironment);
       await reconcilePagBankPayment({ backend, payment: context.payment, fetchImpl, env, logError });
-      context = await loadContext(backend, tokenHash);
+      context = await loadContext(backend, tokenHash, providerEnvironment);
       return sendJson(response, 200, publicPayload(context, now()), { 'Cache-Control': 'no-store' });
     } catch (error) {
       if (['INVALID_PUBLIC_TOKEN', 'PUBLIC_ORDER_NOT_FOUND'].includes(error?.message)) {
