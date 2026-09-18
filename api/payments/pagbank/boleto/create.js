@@ -3,8 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { boletoGeneratedEmail, deliverTransactionalEmail } from '../../../_transactionalEmail.js';
 import { verifyTurnstileToken } from '../../../_turnstile.js';
-
-const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
+import {
+  logPagBankHomologation,
+  pagBankApiBaseUrl,
+  pagBankEnvironment,
+  requirePagBankEnvironment
+} from '../../../_pagbankEnvironment.js';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 20 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -212,10 +216,10 @@ function publicOrderUrl(env, token) {
   return new URL(`/pedido/${encodeURIComponent(token)}`, url).toString();
 }
 
-async function loadContext(backend, orderId, paymentId, userId) {
+async function loadContext(backend, orderId, paymentId, userId, providerEnvironment = 'sandbox') {
   const [{ data: order, error: orderError }, { data: payment, error: paymentError }] = await Promise.all([
     backend.from('orders')
-      .select('id, user_id, status, currency, total_cents, order_items(id, product_name, quantity, unit_price_cents, product:products(product_type, fulfillment_mode))')
+      .select('id, user_id, status, currency, total_cents, checkout_environment, order_items(id, product_name, quantity, unit_price_cents, product:products(product_type, fulfillment_mode))')
       .eq('id', orderId).maybeSingle(),
     backend.from('payments')
       .select('id, order_id, provider, provider_environment, payment_method, provider_request_state, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, boleto_due_date')
@@ -228,8 +232,9 @@ async function loadContext(backend, orderId, paymentId, userId) {
   if (!order || order.user_id !== userId) throw new Error('ORDER_NOT_FOUND');
   if (!serviceItems) throw new Error('BOLETO_NOT_AVAILABLE');
   if (order.status !== 'pending_payment') throw new Error('ORDER_NOT_PENDING_PAYMENT');
+  if (order.checkout_environment !== providerEnvironment) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== order.id || payment.provider !== 'pagbank'
-    || payment.provider_environment !== 'sandbox' || payment.payment_method !== 'boleto'
+    || payment.provider_environment !== providerEnvironment || payment.payment_method !== 'boleto'
     || payment.status !== 'pending' || payment.amount_cents !== order.total_cents
     || payment.buyer_fee_cents !== 0 || payment.installments !== null
     || payment.currency !== 'BRL' || order.currency !== 'BRL') throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
@@ -241,7 +246,7 @@ async function callPagBank(fetchImpl, env, method, paymentId, body, externalOrde
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
   try {
-    return await fetchImpl(`${PAGBANK_SANDBOX_URL}${suffix}`, {
+    return await fetchImpl(`${pagBankApiBaseUrl(env)}${suffix}`, {
       method,
       headers: {
         Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
@@ -323,24 +328,26 @@ export function createPagBankBoletoHandler({
     try {
       const input = validatePagBankBoletoInput(request.body);
       const notificationUrl = webhookUrl(env);
-      if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY || !notificationUrl) {
+      if (!pagBankEnvironment(env) || !env.PAGBANK_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY || !notificationUrl) {
         throw new Error('PAYMENT_NOT_CONFIGURED');
       }
+      const providerEnvironment = requirePagBankEnvironment(env);
       const auth = client(createClientImpl, env, env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY);
       const { data: userData, error: userError } = await auth.auth.getUser(accessToken);
       if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
       await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       const backend = client(createClientImpl, env, env.SUPABASE_SERVICE_ROLE_KEY);
-      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_boleto_payment', {
+      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_boleto_payment_for_environment', {
         p_order_id: input.orderId,
         p_user_id: userData.user.id,
+        p_provider_environment: providerEnvironment,
         p_name: input.customer.name,
         p_email: input.customer.email
       });
       if (prepareError) throw new Error(prepareError.message);
       if (!UUID_PATTERN.test(paymentId || '')) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
 
-      const context = await loadContext(backend, input.orderId, paymentId, userData.user.id);
+      const context = await loadContext(backend, input.orderId, paymentId, userData.user.id, providerEnvironment);
       context.customerEmail = input.customer.email;
       const dueDate = context.payment.boleto_due_date || boletoDueDate(now());
       const publicToken = randomBytesImpl(32).toString('base64url');
@@ -378,6 +385,7 @@ export function createPagBankBoletoHandler({
           dueDate,
           notificationUrl
         });
+        logPagBankHomologation('BOLETO', 'REQUEST', payload, { env });
         let providerResponse;
         try {
           providerResponse = await callPagBank(fetchImpl, env, 'POST', context.payment.id, payload);
@@ -394,7 +402,14 @@ export function createPagBankBoletoHandler({
           if (definitive) return sendJson(response, 422, { error: 'PAGBANK_REJECTED' });
           throw new Error('BOLETO_CREATION_UNCERTAIN');
         }
-        result = validatePagBankBoletoResponse(await providerResponse.json(), { ...context, dueDate });
+        let providerBody;
+        try {
+          providerBody = await providerResponse.json();
+        } catch {
+          throw new Error('BOLETO_CREATION_UNCERTAIN');
+        }
+        logPagBankHomologation('BOLETO', 'RESPONSE', providerBody, { env });
+        result = validatePagBankBoletoResponse(providerBody, { ...context, dueDate });
         const { data: recorded, error: recordError } = await backend.rpc('record_pagbank_boleto_creation', {
           p_payment_id: context.payment.id,
           p_order_id: context.order.id,
@@ -420,7 +435,7 @@ export function createPagBankBoletoHandler({
           url: result.boletoUrl
         },
         publicUrl: secureUrl,
-        environment: 'sandbox'
+        environment: providerEnvironment
       });
     } catch (error) {
       const result = publicError(error);
