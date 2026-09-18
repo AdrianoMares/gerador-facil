@@ -157,6 +157,30 @@ export function createPagBankCardPublicKeyHandler({
     }
 
     if (request.query?.readiness === '1') {
+      if (request.query?.createCardKey === '1') {
+        let status = null;
+        let created = false;
+        try {
+          requirePagBankEnvironment(env);
+          if (env.PAGBANK_ENV !== 'production') throw new Error('PAYMENT_NOT_CONFIGURED');
+          const providerResponse = await fetchImpl(`${pagBankApiBaseUrl(env)}/public-keys`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ type: 'card' })
+          });
+          status = providerResponse.status;
+          created = providerResponse.ok && providerResponse.status === 201;
+        } catch {
+          created = false;
+        }
+        response.setHeader('Cache-Control', 'no-store');
+        return sendJson(response, created ? 200 : 409, { created, status });
+      }
+
       const result = await readiness(createClientImpl, fetchImpl, env);
       response.setHeader('Cache-Control', 'no-store');
       return sendJson(response, 200, result);
