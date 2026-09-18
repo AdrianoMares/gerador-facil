@@ -66,7 +66,7 @@ export function createPagBankCardInstallmentsHandler({
         buyerFee: plan.buyerFee,
         interestFree: plan.interestFree
       }));
-      return sendJson(response, 200, { installments, environment: 'sandbox' });
+      return sendJson(response, 200, { installments, environment: env.PAGBANK_ENV });
     } catch (error) {
       const code = error?.message;
       if (code === 'INVALID_BODY' || code === 'INVALID_CARD_BIN') return sendJson(response, 400, { error: 'INVALID_BODY' });
