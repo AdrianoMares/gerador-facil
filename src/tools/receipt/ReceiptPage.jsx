@@ -6,8 +6,10 @@ import { ModeSelector } from '../../components/ModeSelector';
 import { Seo } from '../../components/Seo';
 import { useDocumentDraft } from '../../hooks/useDocumentDraft';
 import { applyReceiptAiPatch } from '../../utils/documentAiPatch';
+import { siteIdentity } from '../../config/siteIdentity';
 import { receiptConfig } from './receiptConfig';
 import { ReceiptForm } from './ReceiptForm';
+import { ReceiptSeoContent, receiptFaqItems } from './ReceiptSeoContent';
 import { ReceiptPreview } from './ReceiptPreview';
 import {
   createReceiptData,
@@ -15,6 +17,44 @@ import {
   serializeReceiptDraft,
   validateReceiptData
 } from './receiptSchema';
+
+const receiptCanonical = `${siteIdentity.domain}/ferramentas/gerador-de-recibo`;
+
+const receiptStructuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebApplication',
+      name: 'Gerador de Recibo Online com IA',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: receiptCanonical,
+      description: receiptConfig.seo.description,
+      offers: {
+        '@type': 'Offer',
+        price: '4.90',
+        priceCurrency: 'BRL',
+        description: 'Download do recibo final em PDF'
+      },
+      provider: {
+        '@type': 'Organization',
+        name: siteIdentity.brand,
+        url: siteIdentity.domain
+      }
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: receiptFaqItems.map(([question, answer]) => ({
+        '@type': 'Question',
+        name: question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: answer
+        }
+      }))
+    }
+  ]
+};
 
 export function ReceiptPage() {
   const [receiptData, setReceiptData] = useState(createReceiptData);
@@ -31,8 +71,13 @@ export function ReceiptPage() {
 
   return (
     <div className="container page-section tool-page">
-      <Seo title={receiptConfig.seo.title} description={receiptConfig.seo.description} />
-      <div className="tool-page-heading">
+      <Seo
+        title={receiptConfig.seo.title}
+        description={receiptConfig.seo.description}
+        canonical={receiptCanonical}
+        structuredData={receiptStructuredData}
+      />
+      <div className="tool-page-heading" id="gerador-de-recibo">
         <span className="eyebrow">Documentos</span>
         <h1>{receiptConfig.name}</h1>
         <p>{receiptConfig.description}</p>
@@ -59,6 +104,7 @@ export function ReceiptPage() {
         <ReceiptPreview data={receiptData} />
       </div>
       <DocumentFinalization validation={validation} productCode="receipt_pdf" resourceId={draftState.draftId} />
+      <ReceiptSeoContent />
     </div>
   );
 }
