@@ -1,18 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, sendJson } from '../_documentAiAuth.js';
+import { pagBankEnvironment } from '../_pagbankEnvironment.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FINANCIAL_FIELDS = new Set(['amount', 'total', 'price', 'unitPrice', 'currency', 'status', 'paid', 'provider', 'providerPaymentId']);
 const ALLOWED_FIELDS = new Set(['productCode', 'resourceId']);
 
-function checkoutClient(createClientImpl, env, accessToken) {
+function authClient(createClientImpl, env) {
   const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
   const publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) throw new Error('AUTH_NOT_CONFIGURED');
-
   return createClientImpl(url, publishableKey, {
-    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
-    global: { headers: { Authorization: `Bearer ${accessToken}` } }
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
+  });
+}
+
+function backendClient(createClientImpl, env) {
+  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+  if (!url || !env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('CHECKOUT_BACKEND_NOT_CONFIGURED');
+  return createClientImpl(url, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
 }
 
@@ -25,10 +32,9 @@ function validateBody(body) {
   if (typeof body.productCode !== 'string' || !body.productCode.trim() || body.productCode.length > 100) {
     throw new Error('INVALID_PRODUCT_CODE');
   }
-  if (body.resourceId !== null && body.resourceId !== undefined && (!UUID_PATTERN.test(body.resourceId))) {
+  if (body.resourceId !== null && body.resourceId !== undefined && !UUID_PATTERN.test(body.resourceId)) {
     throw new Error('INVALID_RESOURCE_ID');
   }
-
   return { productCode: body.productCode.trim(), resourceId: body.resourceId || null };
 }
 
@@ -39,7 +45,9 @@ function publicError(error) {
   }
   if (['PRODUCT_NOT_AVAILABLE', 'LEGAL_ACCEPTANCE_REQUIRED'].includes(code)) return { status: 409, code };
   if (['INVALID_FULFILLMENT', 'INVALID_DOCUMENT_RESOURCE'].includes(code)) return { status: 422, code };
-  if (code === 'AUTH_NOT_CONFIGURED') return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
+  if (['AUTH_NOT_CONFIGURED', 'CHECKOUT_BACKEND_NOT_CONFIGURED', 'PAYMENT_NOT_CONFIGURED'].includes(code)) {
+    return { status: 503, code: 'SERVICE_NOT_CONFIGURED' };
+  }
   return { status: 500, code: 'CHECKOUT_UNAVAILABLE' };
 }
 
@@ -48,18 +56,28 @@ export function createCheckoutHandler({ createClientImpl = createClient, env = p
     if (request.method !== 'POST') {
       return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
     }
+    if (env.SERVICE_CHECKOUT_ENABLED !== 'true') {
+      return sendJson(response, 503, { error: 'CHECKOUT_DISABLED' });
+    }
 
     const accessToken = bearerToken(request.headers?.authorization);
     if (!accessToken) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
 
     try {
+      const environment = pagBankEnvironment(env);
+      if (!environment) throw new Error('PAYMENT_NOT_CONFIGURED');
       const input = validateBody(request.body);
-      const client = checkoutClient(createClientImpl, env, accessToken);
-      const { data: userData, error: userError } = await client.auth.getUser(accessToken);
-      if (userError || !userData?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      const auth = authClient(createClientImpl, env);
+      const { data: userData, error: userError } = await auth.auth.getUser(accessToken);
+      if (userError || !UUID_PATTERN.test(userData?.user?.id || '')) {
+        return sendJson(response, 401, { error: 'UNAUTHORIZED' });
+      }
 
-      const { data: orderId, error } = await client.rpc('create_checkout_order', {
+      const backend = backendClient(createClientImpl, env);
+      const { data: orderId, error } = await backend.rpc('create_checkout_order_for_environment', {
+        p_user_id: userData.user.id,
         p_product_code: input.productCode,
+        p_checkout_environment: environment,
         p_resource_id: input.resourceId
       });
       if (error) throw new Error(error.message);
