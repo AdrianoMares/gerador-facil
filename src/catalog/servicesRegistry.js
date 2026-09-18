@@ -250,6 +250,7 @@ export const serviceCategories = [
           description: 'Faça sua Declaração Anual do MEI (DASN-SIMEI) com atendimento online. A Resodi auxilia na preparação, envio e conclusão da declaração.'
         },
         checkout: {
+          ready: true,
           productCode: 'declaracao_anual_mei'
         },
         detail: {
