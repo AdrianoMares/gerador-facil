@@ -18,10 +18,14 @@ export const serviceCategories = [
         description: `Atendimento online para preparar, conferir e transmitir a Declaração de Imposto de Renda ${currentYear}.`,
         priceCents: 10000,
         priceSuffix: 'por declaração/ano',
-        status: 'draft',
+        status: 'active',
         seo: {
           title: `Declaração de Imposto de Renda ${currentYear} Online`,
           description: `Faça sua Declaração de Imposto de Renda ${currentYear} com atendimento online. A Resodi auxilia na preparação, conferência e transmissão do IRPF.`
+        },
+        checkout: {
+          ready: true,
+          productCode: 'declaracao_imposto_renda'
         },
         detail: declaracaoImpostoRendaDetail
       },
@@ -35,12 +39,13 @@ export const serviceCategories = [
         description: 'Regularização de pendências do Imposto de Renda, incluindo CPF Pendente de Regularização, declaração não entregue e declaração retida na Malha Fina.',
         priceCents: 10000,
         priceSuffix: 'por ano/declaração',
-        status: 'draft',
+        status: 'active',
         seo: {
           title: 'Malha Fina e CPF Pendente de Regularização | Resodi',
           description: 'CPF Pendente de Regularização, Erro 04 ou declaração na Malha Fina? A Resodi identifica a pendência do IR e auxilia na regularização.'
         },
         checkout: {
+          ready: true,
           productCode: 'malha_fina_ir'
         },
         detail: {
@@ -228,10 +233,14 @@ export const serviceCategories = [
         description: 'Atendimento online para orientar e auxiliar na formalização do MEI e emissão do CNPJ e CCMEI.',
         priceCents: 10000,
         priceSuffix: 'por abertura',
-        status: 'draft',
+        status: 'active',
         seo: {
           title: 'Abrir MEI: CNPJ e Formalização Online',
           description: 'Quer abrir MEI? A Resodi orienta atividade e CNAE, auxilia na formalização e conclusão do seu CNPJ MEI. Atendimento online por R$ 100.'
+        },
+        checkout: {
+          ready: true,
+          productCode: 'abertura_mei'
         },
         detail: aberturaMeiDetail
       },
@@ -244,7 +253,7 @@ export const serviceCategories = [
         path: '/servicos/mei/declaracao-anual-mei',
         description: 'Auxílio para envio da Declaração Anual do MEI (DASN-SIMEI).',
         priceCents: 10000,
-        status: 'draft',
+        status: 'active',
         seo: {
           title: 'Declaração Anual do MEI (DASN-SIMEI) Online',
           description: 'Faça sua Declaração Anual do MEI (DASN-SIMEI) com atendimento online. A Resodi auxilia na preparação, envio e conclusão da declaração.'
@@ -325,12 +334,13 @@ export const serviceCategories = [
         description: 'Análise e orientação para regularizar pendências, débitos e parcelamentos do MEI.',
         priceCents: 10000,
         priceSuffix: 'por MEI/regularização',
-        status: 'draft',
+        status: 'active',
         seo: {
           title: 'Regularizar MEI Atrasado, Dívidas e Parcelamento',
           description: 'Precisa regularizar MEI atrasado? A Resodi analisa dívidas, débitos, possibilidades de parcelamento e pendências do MEI com atendimento online.'
         },
         checkout: {
+          ready: true,
           productCode: 'regularizacao_mei'
         },
         detail: regularizacaoMeiDetail
