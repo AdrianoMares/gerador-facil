@@ -1,8 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { verifyTurnstileToken } from '../../../_turnstile.js';
-
-const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
+import {
+  logPagBankHomologation,
+  pagBankApiBaseUrl,
+  pagBankApiHostname,
+  pagBankEnvironment,
+  requirePagBankEnvironment
+} from '../../../_pagbankEnvironment.js';
 const PIX_EXPIRATION_MINUTES = 30;
 const PAGBANK_TIMEOUT_MS = 12_000;
 const MAX_BODY_BYTES = 16 * 1024;
@@ -84,11 +89,11 @@ export function buildPagBankPixPayload({ order, payment, customer, now, notifica
   };
 }
 
-function validSandboxQrUrl(value) {
+function validPagBankQrUrl(value, environment = 'sandbox') {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'sandbox.api.pagseguro.com'
+    return url.protocol === 'https:' && url.hostname === pagBankApiHostname({ PAGBANK_ENV: environment })
       ? url.toString()
       : null;
   } catch {
@@ -100,7 +105,8 @@ export function validatePagBankPixResponse(payload, {
   order,
   payment,
   expectedExternalOrderId = null,
-  expectedExternalPaymentId = null
+  expectedExternalPaymentId = null,
+  environment = 'sandbox'
 }) {
   if (!payload || typeof payload !== 'object' || !PAGBANK_ORDER_PATTERN.test(payload.id || '')) {
     throw new Error('INVALID_PAGBANK_RESPONSE');
@@ -127,8 +133,9 @@ export function validatePagBankPixResponse(payload, {
   const qrCode = typeof charge.qr_code?.text === 'string' && charge.qr_code.text.trim()
     ? charge.qr_code.text.trim()
     : null;
-  const qrCodeUrl = validSandboxQrUrl(
-    charge.links?.find((link) => link?.rel === 'QRCODE.PNG' && link?.media === 'image/png')?.href
+  const qrCodeUrl = validPagBankQrUrl(
+    charge.links?.find((link) => link?.rel === 'QRCODE.PNG' && link?.media === 'image/png')?.href,
+    environment
   );
   const expiresAt = charge.payment_method?.pix?.expiration_date;
 
@@ -169,7 +176,7 @@ function serviceClient(createClientImpl, env) {
 }
 
 function configurationReady(env) {
-  return env.PAGBANK_ENV === 'sandbox' && Boolean(env.PAGBANK_TOKEN);
+  return Boolean(pagBankEnvironment(env) && env.PAGBANK_TOKEN);
 }
 
 function configuredWebhookUrl(env) {
@@ -199,7 +206,7 @@ function publicError(error) {
   return { status: 500, code: 'PIX_CREATE_UNAVAILABLE' };
 }
 
-async function loadPaymentContext(client, orderId, paymentId, userId) {
+async function loadPaymentContext(client, orderId, paymentId, userId, providerEnvironment = 'sandbox') {
   const [{ data: order, error: orderError }, { data: payment, error: paymentError }] = await Promise.all([
     client
       .from('orders')
@@ -219,7 +226,7 @@ async function loadPaymentContext(client, orderId, paymentId, userId) {
   if (order.currency !== 'BRL') throw new Error('ORDER_CURRENCY_NOT_SUPPORTED');
   if (!Array.isArray(order.order_items) || order.order_items.length === 0) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment || payment.order_id !== order.id || payment.provider !== 'pagbank'
-    || payment.provider_environment !== 'sandbox' || payment.payment_method !== 'pix'
+    || payment.provider_environment !== providerEnvironment || payment.payment_method !== 'pix'
     || payment.status !== 'pending' || payment.amount_cents !== order.total_cents
     || payment.currency !== order.currency) {
     throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
@@ -250,7 +257,7 @@ async function callPagBank(fetchImpl, env, { method, externalOrderId, body }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
   try {
-    return await fetchImpl(`${PAGBANK_SANDBOX_URL}${suffix}`, {
+    return await fetchImpl(`${pagBankApiBaseUrl(env)}${suffix}`, {
       method,
       headers: {
         Authorization: `Bearer ${env.PAGBANK_TOKEN}`,
@@ -265,7 +272,7 @@ async function callPagBank(fetchImpl, env, { method, externalOrderId, body }) {
   }
 }
 
-function sendPix(response, httpStatus, paymentId, result) {
+function sendPix(response, httpStatus, paymentId, result, environment) {
   return sendJson(response, httpStatus, {
     paymentId,
     status: 'pending',
@@ -274,18 +281,18 @@ function sendPix(response, httpStatus, paymentId, result) {
       qrCodeUrl: result.qrCodeUrl,
       expiresAt: result.expiresAt
     },
-    environment: 'sandbox'
+    environment
   });
 }
 
-function sendProviderResult(response, payment, result, httpStatus) {
+function sendProviderResult(response, payment, result, httpStatus, environment) {
   if (result.providerStatus === 'DECLINED') {
     return sendJson(response, 422, { error: 'PAGBANK_DECLINED' });
   }
   if (result.providerStatus === 'PAID') {
     return sendJson(response, 409, { error: 'PAYMENT_STATUS_REVIEW_REQUIRED' });
   }
-  return sendPix(response, httpStatus, payment.id, result);
+  return sendPix(response, httpStatus, payment.id, result, environment);
 }
 
 async function recoverCreatedPix({ response, backend, fetchImpl, env, order, payment }) {
@@ -337,7 +344,7 @@ async function recoverCreatedPix({ response, backend, fetchImpl, env, order, pay
     }
   }
 
-  return sendProviderResult(response, payment, result, 200);
+  return sendProviderResult(response, payment, result, 200, pagBankEnvironment(env));
 }
 
 async function handleExistingState(context) {
@@ -382,11 +389,13 @@ export function createPagBankPixHandler({
       const input = validatePagBankPixInput(request.body);
       await verifyTurnstileImpl(request.body?.turnstileToken, { env, fetchImpl, request });
       if (!configurationReady(env)) throw new Error('PAYMENT_NOT_CONFIGURED');
+      const providerEnvironment = requirePagBankEnvironment(env);
 
       const backend = serviceClient(createClientImpl, env);
-      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_pix_payment', {
+      const { data: paymentId, error: prepareError } = await backend.rpc('prepare_pagbank_pix_payment_for_environment', {
         p_order_id: input.orderId,
         p_user_id: userData.user.id,
+        p_provider_environment: providerEnvironment,
         p_name: input.customer.name,
         p_email: input.customer.email,
         p_phone_country: input.customer.phone.country,
@@ -396,7 +405,7 @@ export function createPagBankPixHandler({
       if (prepareError) throw new Error(prepareError.message);
       if (!UUID_PATTERN.test(paymentId || '')) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
 
-      let context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id);
+      let context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id, providerEnvironment);
       if (await handleExistingState(context) === 'created') {
         return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
       }
@@ -410,7 +419,7 @@ export function createPagBankPixHandler({
       });
       if (claimError) throw new Error(claimError.message);
       if (claimed !== true) {
-        context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id);
+        context = await loadPaymentContext(backend, input.orderId, paymentId, userData.user.id, providerEnvironment);
         if (await handleExistingState(context) === 'created') {
           return recoverCreatedPix({ response, backend, fetchImpl, env, ...context });
         }
@@ -425,6 +434,7 @@ export function createPagBankPixHandler({
         now: now(),
         notificationUrl
       });
+      logPagBankHomologation('PIX', 'REQUEST', pagBankPayload, { env });
       let pagBankResponse;
       try {
         pagBankResponse = await callPagBank(fetchImpl, env, { method: 'POST', body: pagBankPayload });
@@ -453,9 +463,11 @@ export function createPagBankPixHandler({
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
 
+      logPagBankHomologation('PIX', 'RESPONSE', pagBankBody, { env });
+
       let result;
       try {
-        result = validatePagBankPixResponse(pagBankBody, { order, payment });
+        result = validatePagBankPixResponse(pagBankBody, { order, payment, environment: providerEnvironment });
       } catch {
         await markUncertain(backend, payment.id);
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
@@ -480,7 +492,7 @@ export function createPagBankPixHandler({
         return sendJson(response, 502, { error: 'PIX_CREATION_UNCERTAIN' });
       }
 
-      return sendProviderResult(response, payment, result, 201);
+      return sendProviderResult(response, payment, result, 201, providerEnvironment);
     } catch (error) {
       const result = publicError(error);
       return sendJson(response, result.status, { error: result.code });
