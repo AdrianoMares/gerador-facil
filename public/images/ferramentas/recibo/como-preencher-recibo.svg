@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="title desc">
+  <title id="title">Como preencher um recibo de pagamento</title>
+  <desc id="desc">Ilustração com campos de pagador, recebedor, valor, referência, cidade e data em um recibo.</desc>
+  <rect width="720" height="520" rx="28" fill="#f8fafb"/>
+  <rect x="72" y="54" width="576" height="412" rx="20" fill="#fff" stroke="#cbd8e2" stroke-width="2"/>
+  <text x="108" y="104" font-family="Arial, sans-serif" font-size="16" fill="#2e9e6f" font-weight="700">RECIBO DE PAGAMENTO</text>
+  <text x="108" y="145" font-family="Arial, sans-serif" font-size="29" fill="#0d2742" font-weight="700">Preencha os dados principais</text>
+  <g font-family="Arial, sans-serif" font-size="13" fill="#526a7d">
+    <text x="108" y="196">QUEM PAGOU</text>
+    <text x="378" y="196">QUEM RECEBEU</text>
+    <text x="108" y="282">VALOR</text>
+    <text x="378" y="282">REFERENTE A</text>
+    <text x="108" y="368">CIDADE</text>
+    <text x="378" y="368">DATA</text>
+  </g>
+  <g fill="#f4f6f8" stroke="#bdcad5">
+    <rect x="108" y="210" width="220" height="42" rx="8"/>
+    <rect x="378" y="210" width="220" height="42" rx="8"/>
+    <rect x="108" y="296" width="220" height="42" rx="8"/>
+    <rect x="378" y="296" width="220" height="42" rx="8"/>
+    <rect x="108" y="382" width="220" height="42" rx="8"/>
+    <rect x="378" y="382" width="220" height="42" rx="8"/>
+  </g>
+  <circle cx="615" cy="86" r="22" fill="#edf7f2"/>
+  <path d="M604 86l7 7 14-17" fill="none" stroke="#2e9e6f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
