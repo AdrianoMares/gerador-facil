@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { bearerToken, requestContentLength, sendJson } from '../../../_documentAiAuth.js';
 import { reconcilePagBankPayment } from '../../../_pagbankReconciliation.js';
+import { requirePagBankEnvironment } from '../../../_pagbankEnvironment.js';
 
 const MAX_BODY_BYTES = 4 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -13,15 +14,16 @@ function client(createClientImpl, env, key) {
   });
 }
 
-async function loadPayment(backend, orderId, userId) {
+async function loadPayment(backend, orderId, userId, providerEnvironment = 'sandbox') {
   const { data: order, error: orderError } = await backend.from('orders')
-    .select('id, user_id, status, total_cents, currency')
+    .select('id, user_id, status, total_cents, currency, checkout_environment')
     .eq('id', orderId).eq('user_id', userId).maybeSingle();
   if (orderError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!order) throw new Error('ORDER_NOT_FOUND');
+  if (order.checkout_environment !== providerEnvironment) throw new Error('ORDER_NOT_FOUND');
   const { data: payment, error: paymentError } = await backend.from('payments')
     .select('id, order_id, provider, provider_environment, payment_method, status, amount_cents, buyer_fee_cents, installments, currency, external_order_id, external_payment_id, provider_status, refunded_amount_cents')
-    .eq('order_id', order.id).eq('provider', 'pagbank').eq('provider_environment', 'sandbox')
+    .eq('order_id', order.id).eq('provider', 'pagbank').eq('provider_environment', providerEnvironment)
     .eq('payment_method', 'credit_card').order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (paymentError) throw new Error('PAYMENT_CONTEXT_UNAVAILABLE');
   if (!payment) throw new Error('PAYMENT_NOT_FOUND');
@@ -47,11 +49,10 @@ export function createPagBankCardStatusHandler({
       const auth = client(createClientImpl, env, env.SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY);
       const { data, error } = await auth.auth.getUser(accessToken);
       if (error || !data?.user) return sendJson(response, 401, { error: 'UNAUTHORIZED' });
-      if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN || !env.SUPABASE_SERVICE_ROLE_KEY) {
-        throw new Error('PAYMENT_NOT_CONFIGURED');
-      }
+      const providerEnvironment = requirePagBankEnvironment(env);
+      if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('PAYMENT_NOT_CONFIGURED');
       const backend = client(createClientImpl, env, env.SUPABASE_SERVICE_ROLE_KEY);
-      const payment = await loadPayment(backend, request.body.orderId, data.user.id);
+      const payment = await loadPayment(backend, request.body.orderId, data.user.id, providerEnvironment);
       const result = await reconcilePagBankPayment({ backend, payment, fetchImpl, env, logError });
       return sendJson(response, 200, {
         orderStatus: result.orderStatus,
