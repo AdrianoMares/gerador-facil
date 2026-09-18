@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="title desc">
+  <title id="title">Como fazer um currículo online</title>
+  <desc id="desc">Ilustração de currículo com dados pessoais, resumo profissional, experiência, formação e habilidades.</desc>
+  <rect width="720" height="520" rx="28" fill="#f8fafb"/>
+  <rect x="86" y="42" width="548" height="436" rx="18" fill="#fff" stroke="#cbd8e2" stroke-width="2"/>
+  <rect x="86" y="42" width="166" height="436" rx="18" fill="#102f4e"/>
+  <circle cx="169" cy="118" r="43" fill="#dfe7ed"/>
+  <rect x="125" y="186" width="89" height="10" rx="5" fill="#8ed3b3"/>
+  <rect x="116" y="210" width="108" height="7" rx="3.5" fill="#c7d3de" opacity=".8"/>
+  <rect x="116" y="228" width="86" height="7" rx="3.5" fill="#c7d3de" opacity=".8"/>
+  <rect x="116" y="280" width="106" height="8" rx="4" fill="#8ed3b3"/>
+  <rect x="116" y="302" width="92" height="7" rx="3.5" fill="#c7d3de" opacity=".8"/>
+  <rect x="116" y="320" width="75" height="7" rx="3.5" fill="#c7d3de" opacity=".8"/>
+  <text x="292" y="98" font-family="Arial, sans-serif" font-size="29" fill="#0d2742" font-weight="700">Seu nome profissional</text>
+  <rect x="292" y="122" width="164" height="10" rx="5" fill="#2e9e6f"/>
+  <text x="292" y="179" font-family="Arial, sans-serif" font-size="15" fill="#163b63" font-weight="700">RESUMO PROFISSIONAL</text>
+  <rect x="292" y="198" width="279" height="8" rx="4" fill="#dce3e9"/>
+  <rect x="292" y="216" width="248" height="8" rx="4" fill="#dce3e9"/>
+  <rect x="292" y="234" width="264" height="8" rx="4" fill="#dce3e9"/>
+  <text x="292" y="292" font-family="Arial, sans-serif" font-size="15" fill="#163b63" font-weight="700">EXPERIÊNCIA PROFISSIONAL</text>
+  <rect x="292" y="312" width="180" height="9" rx="4.5" fill="#2e9e6f"/>
+  <rect x="292" y="332" width="292" height="7" rx="3.5" fill="#dce3e9"/>
+  <rect x="292" y="349" width="265" height="7" rx="3.5" fill="#dce3e9"/>
+  <text x="292" y="407" font-family="Arial, sans-serif" font-size="15" fill="#163b63" font-weight="700">FORMAÇÃO E HABILIDADES</text>
+  <rect x="292" y="428" width="220" height="8" rx="4" fill="#dce3e9"/>
+</svg>
