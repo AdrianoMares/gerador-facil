@@ -1,6 +1,5 @@
 import { sendServicePaymentConfirmedEmail } from './_transactionalEmail.js';
-
-const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
+import { pagBankApiBaseUrl, requirePagBankEnvironment } from './_pagbankEnvironment.js';
 const PAGBANK_TIMEOUT_MS = 12_000;
 const PAGBANK_ORDER_PATTERN = /^ORDE_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAGBANK_CHARGE_PATTERN = /^CHAR_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,7 +55,7 @@ function validLocalContext(payment) {
       && validBoletoUrl(payment.boleto_url);
   }
   return payment?.provider === 'pagbank'
-    && payment.provider_environment === 'sandbox'
+    && ['sandbox', 'production'].includes(payment.provider_environment)
     && ['pix', 'credit_card', 'boleto'].includes(payment.payment_method)
     && validOptionalId(payment.external_order_id, PAGBANK_ORDER_PATTERN)
     && validOptionalId(payment.external_payment_id, PAGBANK_CHARGE_PATTERN)
@@ -162,13 +161,11 @@ export function validatePagBankReconciliationResponse(payload, payment, provider
 }
 
 async function fetchOfficialOrder(fetchImpl, env, externalOrderId) {
-  if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) {
-    throw new Error('PAYMENT_NOT_CONFIGURED');
-  }
+  requirePagBankEnvironment(env);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PAGBANK_TIMEOUT_MS);
   try {
-    const response = await fetchImpl(`${PAGBANK_SANDBOX_URL}/orders/${encodeURIComponent(externalOrderId)}`, {
+    const response = await fetchImpl(`${pagBankApiBaseUrl(env)}/orders/${encodeURIComponent(externalOrderId)}`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
       signal: controller.signal
@@ -238,7 +235,10 @@ export async function reconcilePagBankPayment({
   env = process.env,
   logError = console.error
 }) {
-  if (!validLocalContext(payment)) throw new Error('INVALID_PAYMENT_CONTEXT');
+  const environment = requirePagBankEnvironment(env);
+  if (!validLocalContext(payment) || payment.provider_environment !== environment) {
+    throw new Error('INVALID_PAYMENT_CONTEXT');
+  }
   const identifiers = expectedIdentifiers(payment, providerIdentifiers);
 
   let payload;
