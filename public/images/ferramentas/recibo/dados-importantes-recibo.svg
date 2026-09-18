@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="title desc">
+  <title id="title">Dados importantes de um recibo simples</title>
+  <desc id="desc">Checklist com nome das partes, CPF ou CNPJ, valor, motivo, cidade, data e assinatura.</desc>
+  <rect width="720" height="520" rx="28" fill="#f8fafb"/>
+  <rect x="92" y="52" width="536" height="416" rx="20" fill="#fff" stroke="#cbd8e2" stroke-width="2"/>
+  <text x="132" y="105" font-family="Arial, sans-serif" font-size="15" fill="#2e9e6f" font-weight="700">CHECKLIST DO RECIBO</text>
+  <text x="132" y="147" font-family="Arial, sans-serif" font-size="28" fill="#0d2742" font-weight="700">Informações importantes</text>
+  <g font-family="Arial, sans-serif" font-size="18" fill="#274760">
+    <g transform="translate(132 205)"><circle cx="12" cy="-6" r="12" fill="#edf7f2"/><path d="M6 -6l4 4 8-10" fill="none" stroke="#2e9e6f" stroke-width="3" stroke-linecap="round"/><text x="38" y="0">Quem pagou e quem recebeu</text></g>
+    <g transform="translate(132 258)"><circle cx="12" cy="-6" r="12" fill="#edf7f2"/><path d="M6 -6l4 4 8-10" fill="none" stroke="#2e9e6f" stroke-width="3" stroke-linecap="round"/><text x="38" y="0">CPF ou CNPJ, quando aplicável</text></g>
+    <g transform="translate(132 311)"><circle cx="12" cy="-6" r="12" fill="#edf7f2"/><path d="M6 -6l4 4 8-10" fill="none" stroke="#2e9e6f" stroke-width="3" stroke-linecap="round"/><text x="38" y="0">Valor e motivo do pagamento</text></g>
+    <g transform="translate(132 364)"><circle cx="12" cy="-6" r="12" fill="#edf7f2"/><path d="M6 -6l4 4 8-10" fill="none" stroke="#2e9e6f" stroke-width="3" stroke-linecap="round"/><text x="38" y="0">Cidade e data</text></g>
+    <g transform="translate(132 417)"><circle cx="12" cy="-6" r="12" fill="#edf7f2"/><path d="M6 -6l4 4 8-10" fill="none" stroke="#2e9e6f" stroke-width="3" stroke-linecap="round"/><text x="38" y="0">Identificação ou assinatura</text></g>
+  </g>
+</svg>
