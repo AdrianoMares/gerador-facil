@@ -57,6 +57,13 @@ export function createCheckoutHandler({ createClientImpl = createClient, env = p
       return sendJson(response, 405, { error: 'METHOD_NOT_ALLOWED' }, { Allow: 'POST' });
     }
     if (env.SERVICE_CHECKOUT_ENABLED !== 'true') {
+      console.info('[CHECKOUT_CONFIG]', JSON.stringify({
+        issue: 'CHECKOUT_DISABLED',
+        serviceCheckoutEnabled: env.SERVICE_CHECKOUT_ENABLED === 'true',
+        pagBankEnvironment: pagBankEnvironment(env),
+        supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+        supabaseUrlPresent: Boolean(env.SUPABASE_URL || env.VITE_SUPABASE_URL)
+      }));
       return sendJson(response, 503, { error: 'CHECKOUT_DISABLED' });
     }
 
@@ -65,7 +72,16 @@ export function createCheckoutHandler({ createClientImpl = createClient, env = p
 
     try {
       const environment = pagBankEnvironment(env);
-      if (!environment) throw new Error('PAYMENT_NOT_CONFIGURED');
+      if (!environment) {
+        console.info('[CHECKOUT_CONFIG]', JSON.stringify({
+          issue: 'PAYMENT_NOT_CONFIGURED',
+          serviceCheckoutEnabled: env.SERVICE_CHECKOUT_ENABLED === 'true',
+          pagBankEnvironment: null,
+          supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+          supabaseUrlPresent: Boolean(env.SUPABASE_URL || env.VITE_SUPABASE_URL)
+        }));
+        throw new Error('PAYMENT_NOT_CONFIGURED');
+      }
       const input = validateBody(request.body);
       const auth = authClient(createClientImpl, env);
       const { data: userData, error: userError } = await auth.auth.getUser(accessToken);
@@ -89,6 +105,15 @@ export function createCheckoutHandler({ createClientImpl = createClient, env = p
       });
     } catch (error) {
       const result = publicError(error);
+      if (result.status === 503) {
+        console.info('[CHECKOUT_CONFIG]', JSON.stringify({
+          issue: error?.message || 'SERVICE_NOT_CONFIGURED',
+          serviceCheckoutEnabled: env.SERVICE_CHECKOUT_ENABLED === 'true',
+          pagBankEnvironment: pagBankEnvironment(env),
+          supabaseServiceRolePresent: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+          supabaseUrlPresent: Boolean(env.SUPABASE_URL || env.VITE_SUPABASE_URL)
+        }));
+      }
       return sendJson(response, result.status, { error: result.code });
     }
   };
