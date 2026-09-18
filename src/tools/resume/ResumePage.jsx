@@ -6,7 +6,9 @@ import { ModeSelector } from '../../components/ModeSelector';
 import { Seo } from '../../components/Seo';
 import { useDocumentDraft } from '../../hooks/useDocumentDraft';
 import { applyResumeAiPatch } from '../../utils/documentAiPatch';
+import { siteIdentity } from '../../config/siteIdentity';
 import { resumeConfig } from './resumeConfig';
+import { ResumeSeoContent, resumeFaqItems } from './ResumeSeoContent';
 import { ResumeForm } from './ResumeForm';
 import { ResumePreview } from './ResumePreview';
 import {
@@ -15,6 +17,44 @@ import {
   serializeResumeDraft,
   validateResumeData
 } from './resumeSchema';
+
+const resumeCanonical = `${siteIdentity.domain}/ferramentas/gerador-de-curriculo`;
+
+const resumeStructuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebApplication',
+      name: 'Gerador de Currículo Online com IA',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: resumeCanonical,
+      description: resumeConfig.seo.description,
+      offers: {
+        '@type': 'Offer',
+        price: '14.90',
+        priceCurrency: 'BRL',
+        description: 'Download do currículo final em PDF'
+      },
+      provider: {
+        '@type': 'Organization',
+        name: siteIdentity.brand,
+        url: siteIdentity.domain
+      }
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: resumeFaqItems.map(([question, answer]) => ({
+        '@type': 'Question',
+        name: question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: answer
+        }
+      }))
+    }
+  ]
+};
 
 export function ResumePage() {
   const [resumeData, setResumeData] = useState(createResumeData);
@@ -31,8 +71,13 @@ export function ResumePage() {
 
   return (
     <div className="container page-section tool-page">
-      <Seo title={resumeConfig.seo.title} description={resumeConfig.seo.description} />
-      <div className="tool-page-heading">
+      <Seo
+        title={resumeConfig.seo.title}
+        description={resumeConfig.seo.description}
+        canonical={resumeCanonical}
+        structuredData={resumeStructuredData}
+      />
+      <div className="tool-page-heading" id="gerador-de-curriculo">
         <span className="eyebrow">Carreira</span>
         <h1>{resumeConfig.name}</h1>
         <p>{resumeConfig.description}</p>
@@ -59,6 +104,7 @@ export function ResumePage() {
         <ResumePreview data={resumeData} />
       </div>
       <DocumentFinalization validation={validation} productCode="resume_pdf" resourceId={draftState.draftId} />
+      <ResumeSeoContent />
     </div>
   );
 }
