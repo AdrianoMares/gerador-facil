@@ -16,7 +16,11 @@ import {
   pollPagBankPixStatus
 } from '../../services/payments';
 
-const pagBankSandboxEnabled = import.meta.env?.VITE_PAGBANK_SANDBOX_ENABLED === 'true';
+const pagBankEnvironment = ['sandbox', 'production'].includes(import.meta.env?.VITE_PAGBANK_ENV)
+  ? import.meta.env.VITE_PAGBANK_ENV
+  : null;
+const pagBankEnabled = import.meta.env?.VITE_PAGBANK_ENABLED === 'true' && Boolean(pagBankEnvironment);
+const pagBankSandbox = pagBankEnvironment === 'sandbox';
 const turnstileSiteKey = import.meta.env?.VITE_TURNSTILE_SITE_KEY;
 const paymentNoticeStyle = { borderColor: '#163B63', background: '#F4F6F8' };
 const successNoticeStyle = { borderColor: '#b9dfcf', background: '#edf7f2' };
@@ -322,7 +326,7 @@ export function CheckoutPage() {
       if (securityMessage) setSecurityError(securityMessage);
       const message = error?.code === 'PIX_CREATION_UNCERTAIN'
         ? 'Não foi possível confirmar a criação do Pix. Aguarde antes de tentar novamente.'
-        : 'Não foi possível gerar o Pix de teste. Confira os dados e tente novamente.';
+        : 'Não foi possível gerar o Pix. Confira os dados e tente novamente.';
       setPixState({ loading: false, error: securityMessage ? '' : message, result: null, copied: false });
     } finally {
       resetTurnstile();
@@ -370,7 +374,7 @@ export function CheckoutPage() {
         PAGBANK_DECLINED: 'Pagamento recusado. Confira os dados ou tente outro cartão.',
         PAGBANK_REJECTED: 'Pagamento recusado. Confira os dados ou tente outro cartão.',
         CARD_CREATION_UNCERTAIN: 'Não foi possível confirmar a cobrança. Aguarde antes de tentar novamente.',
-        PUBLIC_KEY_NOT_CONFIGURED: 'A chave de cartão do ambiente de teste ainda não foi configurada.'
+        PUBLIC_KEY_NOT_CONFIGURED: 'A chave de cartão ainda não foi configurada.'
       };
       setCardState({
         loading: false,
@@ -456,9 +460,9 @@ export function CheckoutPage() {
         </div>
         <p className="checkout-status">Status: <strong>{statusLabels[state.order.status] || 'Indisponível'}</strong></p>
       </section>
-      {pending && pagBankSandboxEnabled && (
+      {pending && pagBankEnabled && (
         <section className="checkout-notice checkout-pix" style={paymentNoticeStyle} aria-live="polite">
-          <h2>Pagamento — Ambiente de teste</h2>
+          <h2>{pagBankSandbox ? 'Pagamento — Ambiente de teste' : 'Pagamento seguro'}</h2>
           <p>Seus dados de contato serão vinculados ao pedido. O CPF/CNPJ é usado apenas para criar a cobrança no PagBank. Número, validade, CVV, BIN e cartão criptografado não são armazenados pela Resodi.</p>
           <fieldset className="checkout-payment-method">
             <legend>Forma de pagamento</legend>
@@ -501,7 +505,7 @@ export function CheckoutPage() {
           {paymentMethod === 'pix' && pixState.result && (
             <div className="checkout-pix-result">
               {pixState.result.pix.qrCodeUrl && (
-                <img src={pixState.result.pix.qrCodeUrl} alt="QR Code Pix do ambiente de teste" width="240" height="240" />
+                <img src={pixState.result.pix.qrCodeUrl} alt={pagBankSandbox ? 'QR Code Pix do ambiente de teste' : 'QR Code Pix'} width="240" height="240" />
               )}
               <label className="form-field">
                 <span>Pix Copia e Cola</span>
@@ -518,7 +522,7 @@ export function CheckoutPage() {
               )}
               {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
               <p>Expira em: <strong>{new Date(pixState.result.pix.expiresAt).toLocaleString('pt-BR')}</strong></p>
-              <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
+              {pagBankSandbox && <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>}
             </div>
           )}
           {paymentMethod === 'credit_card' && !cardState.result && (
@@ -607,7 +611,7 @@ export function CheckoutPage() {
                 <button className="button" type="button" onClick={handleCheckPayment} disabled={paymentCheck.checking}>Verificar pagamento</button>
               )}
               {paymentCheck.error && <p className="checkout-pix-error" role="alert">{paymentCheck.error}</p>}
-              <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>
+              {pagBankSandbox && <p><strong>Ambiente de teste:</strong> nenhum pagamento real será processado.</p>}
             </div>
           )}
           {paymentMethod === 'boleto' && isServiceOrder && !boletoState.result && (
@@ -677,7 +681,7 @@ export function CheckoutPage() {
           )}
         </section>
       )}
-      {pending && !pagBankSandboxEnabled && (
+      {pending && !pagBankEnabled && (
         <section className="checkout-notice" aria-live="polite">
           <h2>Pagamento ainda não disponível</h2>
           <p>Estamos finalizando a configuração das formas de pagamento.</p>
