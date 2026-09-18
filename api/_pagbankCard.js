@@ -1,4 +1,5 @@
-const PAGBANK_SANDBOX_URL = 'https://sandbox.api.pagseguro.com';
+import { pagBankApiBaseUrl, requirePagBankEnvironment } from './_pagbankEnvironment.js';
+
 const PAGBANK_TIMEOUT_MS = 12_000;
 const PAGBANK_SANDBOX_FEES_FALLBACK_BIN = '552100';
 
@@ -131,7 +132,7 @@ async function requestPagBankFeePayload(fetchImpl, env, baseAmount, cardBin, sig
     max_installments_no_interest: '0',
     credit_card_bin: cardBin
   });
-  const response = await fetchImpl(`${PAGBANK_SANDBOX_URL}/charges/fees/calculate?${query}`, {
+  const response = await fetchImpl(`${pagBankApiBaseUrl(env)}/charges/fees/calculate?${query}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${env.PAGBANK_TOKEN}`, Accept: 'application/json' },
     signal
@@ -147,7 +148,7 @@ async function requestPagBankFeePayload(fetchImpl, env, baseAmount, cardBin, sig
 }
 
 export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) {
-  if (env.PAGBANK_ENV !== 'sandbox' || !env.PAGBANK_TOKEN) throw new Error('PAYMENT_NOT_CONFIGURED');
+  const environment = requirePagBankEnvironment(env);
   if (!validCardBin(cardBin)) throw new Error('INVALID_CARD_BIN');
 
   const controller = new AbortController();
@@ -157,7 +158,8 @@ export async function fetchPagBankFeePlans(fetchImpl, env, baseAmount, cardBin) 
       fetchImpl, env, baseAmount, cardBin, controller.signal
     );
 
-    if (response.status === 400
+    if (environment === 'sandbox'
+      && response.status === 400
       && cardBin !== PAGBANK_SANDBOX_FEES_FALLBACK_BIN
       && isSandboxBinDataNotFound(payload)) {
       console.warn('PagBank Fees sandbox fallback', { reason: 'credit_card_bin_data_not_found' });
