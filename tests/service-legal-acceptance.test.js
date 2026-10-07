@@ -21,12 +21,13 @@ test('serviço draft nunca pode iniciar contratação', () => {
 test('aceites jurídicos são reutilizáveis e links permanecem disponíveis em draft', () => {
   const legalAcceptance = readFileSync(new URL('../src/components/ServiceLegalAcceptance.jsx', import.meta.url), 'utf8');
   const purchase = readFileSync(new URL('../src/components/ServicePurchase.jsx', import.meta.url), 'utf8');
+  const purchaseFlow = readFileSync(new URL('../src/services/servicePurchaseFlow.js', import.meta.url), 'utf8');
   const detailPage = readFileSync(new URL('../src/app/routes/ServiceDetailPage.jsx', import.meta.url), 'utf8');
 
   assert.match(legalAcceptance, /to="\/termos-de-uso"/);
   assert.match(legalAcceptance, /to="\/politica-de-privacidade"/);
   assert.match(legalAcceptance, /disabled=\{disabled\}/);
-  assert.match(purchase, /recordServiceLegalAcceptances/);
+  assert.match(purchaseFlow, /recordServiceLegalAcceptances/);
   assert.match(purchase, /canStartServicePurchase/);
   assert.match(detailPage, /<ServiceLegalAcceptance disabled \/>/);
 });

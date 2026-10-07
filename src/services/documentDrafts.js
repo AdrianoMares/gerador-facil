@@ -1,4 +1,9 @@
 import { supabase } from './supabase';
+import {
+  createAnonymousSession,
+  getSupabaseSession,
+  isSupabaseSessionConfigured
+} from './anonymousSession.js';
 
 const draftFields = 'id, payload, status, revision, updated_at';
 
@@ -18,25 +23,15 @@ function requireSupabase() {
 }
 
 export function isDocumentDraftStorageConfigured() {
-  return Boolean(supabase);
+  return isSupabaseSessionConfigured();
 }
 
 export async function getDocumentDraftSession() {
-  const client = requireSupabase();
-  const { data, error } = await client.auth.getSession();
-
-  if (error) throw error;
-  return data.session;
+  return getSupabaseSession();
 }
 
 export async function createAnonymousDocumentSession(captchaToken) {
-  const client = requireSupabase();
-  const { data, error } = await client.auth.signInAnonymously({
-    options: { captchaToken }
-  });
-
-  if (error) throw error;
-  return data.session;
+  return createAnonymousSession(captchaToken);
 }
 
 export async function getLatestDocumentDraft(serviceType) {

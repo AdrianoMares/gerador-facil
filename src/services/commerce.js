@@ -1,4 +1,5 @@
 import { supabase } from './supabase.js';
+import { getSupabaseSession } from './anonymousSession.js';
 
 function requireSessionClient() {
   if (!supabase) throw new Error('Supabase não está configurado.');
@@ -6,10 +7,7 @@ function requireSessionClient() {
 }
 
 export async function getCommerceSession() {
-  const client = await requireSessionClient();
-  const { data, error } = await client.auth.getSession();
-  if (error) throw error;
-  return data.session;
+  return getSupabaseSession();
 }
 
 export async function recordServiceLegalAcceptances() {

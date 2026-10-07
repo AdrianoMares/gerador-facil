@@ -32,6 +32,7 @@ test('rota individual, SEO e card respeitam o status do serviço', () => {
   const page = readFileSync(new URL('../src/app/routes/ServiceDetailPage.jsx', import.meta.url), 'utf8');
   const card = readFileSync(new URL('../src/components/ServiceCard.jsx', import.meta.url), 'utf8');
   const purchase = readFileSync(new URL('../src/components/ServicePurchase.jsx', import.meta.url), 'utf8');
+  const purchaseFlow = readFileSync(new URL('../src/services/servicePurchaseFlow.js', import.meta.url), 'utf8');
   const sitemap = readFileSync(new URL('../public/sitemap.xml', import.meta.url), 'utf8');
 
   assert.match(router, /servicos\/:categorySlug\/:serviceSlug/);
@@ -39,8 +40,8 @@ test('rota individual, SEO e card respeitam o status do serviço', () => {
   assert.match(page, /return <NotFound/);
   assert.match(card, /service\.status === 'active'/);
   assert.match(purchase, /service\.status !== 'active'/);
-  assert.match(purchase, /createCheckoutOrder/);
-  assert.match(purchase, /resourceId: null/);
+  assert.match(purchaseFlow, /createCheckoutOrder/);
+  assert.match(purchaseFlow, /resourceId: null/);
   assert.doesNotMatch(sitemap, /declaracao-anual-mei/);
 });
 
